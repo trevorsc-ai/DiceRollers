@@ -114,8 +114,8 @@ export default function RollPage() {
   return (
     <div className="min-h-screen bg-background px-4 py-6">
       {/* Animations — fire on die selection, not just after save */}
-      {isDoubles && !isMalort && <DoublesConfetti active />}
-      {isMalort && <MalortCelebration active isDoubleSix={isDoubles} />}
+      {isDoubles && <DoublesConfetti active />}
+      {isMalort && !isDoubles && <MalortCelebration active />}
 
       {/* Header */}
       <div className="text-center mb-6">

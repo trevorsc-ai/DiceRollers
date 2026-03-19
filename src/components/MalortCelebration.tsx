@@ -2,7 +2,6 @@
 
 interface MalortCelebrationProps {
   active: boolean;
-  isDoubleSix?: boolean;
 }
 
 const BOTTLES = Array.from({ length: 8 }, (_, i) => ({
@@ -11,7 +10,7 @@ const BOTTLES = Array.from({ length: 8 }, (_, i) => ({
   delay: i * 80,
 }));
 
-export default function MalortCelebration({ active, isDoubleSix }: MalortCelebrationProps) {
+export default function MalortCelebration({ active }: MalortCelebrationProps) {
   if (!active) return null;
 
   return (
@@ -37,34 +36,15 @@ export default function MalortCelebration({ active, isDoubleSix }: MalortCelebra
 
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="animate-scale-in text-center px-4">
-          {isDoubleSix ? (
-            <>
-              <p
-                className="font-display text-4xl sm:text-5xl tracking-widest"
-                style={{ color: "#FFD600", textShadow: "0 0 20px #FFD600, 0 0 40px #FFD600" }}
-              >
-                DOUBLES!
-              </p>
-              <p
-                className="font-display text-4xl sm:text-5xl tracking-widest mt-1"
-                style={{ color: "#00FF88", textShadow: "0 0 20px #00FF88, 0 0 40px #00FF88" }}
-              >
-                + MALORT!
-              </p>
-            </>
-          ) : (
-            <>
-              <p
-                className="font-display text-5xl sm:text-6xl tracking-widest"
-                style={{ color: "#00FF88", textShadow: "0 0 20px #00FF88, 0 0 40px #00FF88" }}
-              >
-                MALORT!
-              </p>
-              <p className="text-neon-green text-sm mt-2 tracking-widest uppercase animate-pulse">
-                You asked for it.
-              </p>
-            </>
-          )}
+          <p
+            className="font-display text-5xl sm:text-6xl tracking-widest"
+            style={{ color: "#00FF88", textShadow: "0 0 20px #00FF88, 0 0 40px #00FF88" }}
+          >
+            MALORT!
+          </p>
+          <p className="text-neon-green text-sm mt-2 tracking-widest uppercase animate-pulse">
+            You asked for it.
+          </p>
         </div>
       </div>
     </div>
