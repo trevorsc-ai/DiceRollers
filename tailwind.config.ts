@@ -20,7 +20,7 @@ const config: Config = {
       },
       animation: {
         "pulse-neon": "pulse-neon 1.5s ease-in-out infinite",
-        "rise": "rise 0.8s ease-out forwards",
+        "rise": "rise 0.8s ease-out both",
         "wobble": "wobble 0.6s ease-in-out infinite",
         "flash": "flash 0.3s ease-in-out 3",
         "scale-in": "scale-in 0.2s ease-out",
