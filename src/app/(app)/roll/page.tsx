@@ -103,9 +103,9 @@ export default function RollPage() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-6">
-      {/* Animations */}
-      {isDoubles && saved && <DoublesConfetti active />}
-      {isMalort && saved && <MalortCelebration active />}
+      {/* Animations — fire on die selection, not just after save */}
+      {isDoubles && <DoublesConfetti active />}
+      {isMalort && <MalortCelebration active />}
 
       {/* Header */}
       <div className="text-center mb-6">
@@ -146,7 +146,7 @@ export default function RollPage() {
                 🎲 DOUBLES! 🎲
               </p>
               <p className="text-text-primary text-sm mt-1">
-                You also get: <span className="text-neon-gold">Old Time Lager</span> + <span className="text-neon-gold">Tullamore Dew shot!</span>
+                You could opt for: <span className="text-neon-gold">Old Time Lager</span> + <span className="text-neon-gold">Tullamore Dew shot!</span>
               </p>
             </div>
           )}

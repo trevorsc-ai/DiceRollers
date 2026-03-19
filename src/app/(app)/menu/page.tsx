@@ -17,6 +17,7 @@ export default function MenuPage() {
   const supabase = createClient();
   const [menu, setMenu] = useState<MenuItem[]>([]);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editLogo, setEditLogo] = useState<File | null>(null);
@@ -42,6 +43,7 @@ export default function MenuPage() {
         .eq("is_active", true)
         .order("die_number");
       if (data) setMenu(data);
+      setLoading(false);
     }
     load();
   }, [supabase]);
@@ -98,6 +100,22 @@ export default function MenuPage() {
     setSaving(false);
     cancelEdit();
   }
+
+  if (loading) return (
+    <div className="min-h-screen bg-background flex items-center justify-center">
+      <p className="text-text-secondary">Loading...</p>
+    </div>
+  );
+
+  if (!isAdmin) return (
+    <div className="min-h-screen bg-background flex items-center justify-center px-4">
+      <div className="text-center">
+        <p className="text-5xl mb-4">🔒</p>
+        <p className="font-display text-2xl neon-text-pink tracking-widest">ADMIN ONLY</p>
+        <p className="text-text-secondary text-sm mt-2">The menu is managed by bar staff.</p>
+      </div>
+    </div>
+  );
 
   const redItems = menu.filter((m) => m.die_color === "red").sort((a, b) => a.die_number - b.die_number);
   const whiteItems = menu.filter((m) => m.die_color === "white").sort((a, b) => a.die_number - b.die_number);
