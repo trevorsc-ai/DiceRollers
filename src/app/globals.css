@@ -3,25 +3,67 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --background: #0D0D0D;
+  --foreground: #F5F5F5;
 }
 
 body {
-  color: var(--foreground);
-  background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: #0D0D0D;
+  color: #F5F5F5;
+  font-family: system-ui, sans-serif;
+  min-height: 100dvh;
 }
 
-@layer utilities {
-  .text-balance {
-    text-wrap: balance;
-  }
+/* Neon text glow effect */
+.neon-text-pink {
+  color: #FF2D55;
+  text-shadow: 0 0 10px #FF2D55, 0 0 20px #FF2D55, 0 0 40px #FF2D55;
+}
+
+.neon-text-gold {
+  color: #FFD600;
+  text-shadow: 0 0 10px #FFD600, 0 0 20px #FFD600, 0 0 40px #FFD600;
+}
+
+.neon-text-green {
+  color: #00FF88;
+  text-shadow: 0 0 10px #00FF88, 0 0 20px #00FF88, 0 0 40px #00FF88;
+}
+
+/* Neon border glow */
+.neon-border-pink {
+  border-color: #FF2D55;
+  box-shadow: 0 0 8px #FF2D55, inset 0 0 8px rgba(255, 45, 85, 0.1);
+}
+
+.neon-border-gold {
+  border-color: #FFD600;
+  box-shadow: 0 0 8px #FFD600, inset 0 0 8px rgba(255, 214, 0, 0.1);
+}
+
+.neon-border-green {
+  border-color: #00FF88;
+  box-shadow: 0 0 8px #00FF88, inset 0 0 8px rgba(0, 255, 136, 0.1);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: #1A1A1A;
+}
+::-webkit-scrollbar-thumb {
+  background: #FF2D55;
+  border-radius: 2px;
+}
+
+/* Prevent pull-to-refresh on mobile */
+body {
+  overscroll-behavior-y: none;
+}
+
+/* Safe area padding for bottom tab bar */
+.pb-safe {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
