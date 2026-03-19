@@ -49,10 +49,7 @@ export default function MalortCelebration({ active, isDoubleSix }: MalortCelebra
                 className="font-display text-4xl sm:text-5xl tracking-widest mt-1"
                 style={{ color: "#00FF88", textShadow: "0 0 20px #00FF88, 0 0 40px #00FF88" }}
               >
-                + MALORT.
-              </p>
-              <p className="text-neon-green text-sm mt-3 tracking-widest uppercase animate-pulse">
-                Old Time Lager · Tullamore Dew · Malort
+                + MALORT!
               </p>
             </>
           ) : (
@@ -61,7 +58,7 @@ export default function MalortCelebration({ active, isDoubleSix }: MalortCelebra
                 className="font-display text-5xl sm:text-6xl tracking-widest"
                 style={{ color: "#00FF88", textShadow: "0 0 20px #00FF88, 0 0 40px #00FF88" }}
               >
-                MALORT.
+                MALORT!
               </p>
               <p className="text-neon-green text-sm mt-2 tracking-widest uppercase animate-pulse">
                 You asked for it.
