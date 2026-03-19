@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import DiePicker from "@/components/DiePicker";
 import DoublesConfetti from "@/components/DoublesConfetti";
 import MalortCelebration from "@/components/MalortCelebration";
-import { CheckCircle, Share2 } from "lucide-react";
+import { CheckCircle, Users } from "lucide-react";
 
 interface MenuItem {
   die_color: "red" | "white";
@@ -29,7 +29,8 @@ export default function RollPage() {
   const [saved, setSaved] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [isPublic, setIsPublic] = useState(false);
-  const [sharedToFeed, setSharedToFeed] = useState(false);
+  const [goingPublic, setGoingPublic] = useState(false);
+  const [madePublic, setMadePublic] = useState(false);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", {
@@ -94,18 +95,27 @@ export default function RollPage() {
     if (!error) setSaved(true);
   }
 
+  async function handleMakePublic() {
+    if (!userId) return;
+    setGoingPublic(true);
+    await supabase.from("profiles").update({ is_public: true }).eq("id", userId);
+    setIsPublic(true);
+    setMadePublic(true);
+    setGoingPublic(false);
+  }
+
   function handleReset() {
     setRedDie(null);
     setWhiteDie(null);
     setSaved(false);
-    setSharedToFeed(false);
+    setMadePublic(false);
   }
 
   return (
     <div className="min-h-screen bg-background px-4 py-6">
       {/* Animations — fire on die selection, not just after save */}
-      {isDoubles && <DoublesConfetti active />}
-      {isMalort && <MalortCelebration active />}
+      {isDoubles && !isMalort && <DoublesConfetti active />}
+      {isMalort && <MalortCelebration active isDoubleSix={isDoubles} />}
 
       {/* Header */}
       <div className="text-center mb-6">
@@ -175,20 +185,32 @@ export default function RollPage() {
         <div className="space-y-3 animate-scale-in">
           <div className="flex items-center justify-center gap-2 text-neon-green">
             <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">Roll saved!</span>
+            <span className="font-medium">
+              {isPublic ? "Roll saved & shared to feed!" : "Roll saved!"}
+            </span>
           </div>
 
-          {isPublic && !sharedToFeed && (
-            <button
-              onClick={() => setSharedToFeed(true)}
-              className="w-full flex items-center justify-center gap-2 bg-surface border border-surface-2 hover:border-neon-green text-text-secondary hover:text-neon-green py-3 rounded-2xl transition-colors text-sm tracking-wider"
-            >
-              <Share2 className="w-4 h-4" />
-              SHARE TO FEED
-            </button>
+          {!isPublic && !madePublic && (
+            <div className="bg-surface border border-neon-pink/30 rounded-2xl p-4 text-center space-y-3">
+              <Users className="w-6 h-6 text-neon-pink mx-auto" />
+              <div>
+                <p className="text-text-primary text-sm font-medium">Join the community</p>
+                <p className="text-text-secondary text-xs mt-1">
+                  Make your profile public so your rolls show up in the feed
+                </p>
+              </div>
+              <button
+                onClick={handleMakePublic}
+                disabled={goingPublic}
+                className="w-full bg-neon-pink text-white font-display text-lg tracking-widest py-2.5 rounded-xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+              >
+                {goingPublic ? "JOINING..." : "GO PUBLIC"}
+              </button>
+            </div>
           )}
-          {sharedToFeed && (
-            <p className="text-center text-neon-green text-sm">Shared to feed!</p>
+
+          {madePublic && (
+            <p className="text-center text-neon-green text-sm">You&apos;re now public — welcome to the feed!</p>
           )}
 
           <button

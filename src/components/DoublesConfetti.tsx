@@ -50,9 +50,6 @@ export default function DoublesConfetti({ active }: DoublesConfettiProps) {
         <p className="font-display text-6xl neon-text-gold animate-pulse-neon tracking-widest">
           DOUBLES!
         </p>
-        <p className="text-text-primary text-sm mt-2 animate-pulse">
-          You also get: Old Time Lager + Tullamore Dew shot!
-        </p>
       </div>
     </div>
   );

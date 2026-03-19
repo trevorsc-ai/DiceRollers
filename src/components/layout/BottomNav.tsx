@@ -13,9 +13,9 @@ const tabs = [
   { href: "/settings", label: "Profile", Icon: Settings },
 ];
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function BottomNav({ isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
+  const visibleTabs = tabs.filter((tab) => tab.href !== "/menu" || isAdmin);
 
   return (
     <nav
@@ -23,7 +23,7 @@ export default function BottomNav({ isAdmin }: { isAdmin: boolean }) {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="flex items-stretch h-16 max-w-lg mx-auto">
-        {tabs.map(({ href, label, Icon }) => {
+        {visibleTabs.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
           return (
             <Link
