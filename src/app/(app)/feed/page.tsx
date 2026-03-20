@@ -212,7 +212,12 @@ function MiniDrink({ name, logo, dieNum, color }: {
           </span>
         )}
       </div>
-      <span className="text-text-primary text-xs truncate">{name}</span>
+      <div>
+        <p className="text-text-primary text-xs truncate leading-tight">{name}</p>
+        <p className={`text-xs ${isRed ? "text-neon-pink/70" : "text-text-secondary"}`}>
+          {isRed ? `🔴 ${dieNum}` : `⚪ ${dieNum}`}
+        </p>
+      </div>
     </div>
   );
 }
