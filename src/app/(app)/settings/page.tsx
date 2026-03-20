@@ -10,6 +10,7 @@ interface Profile {
   username: string;
   is_public: boolean;
   is_admin: boolean;
+  recovery_email: string | null;
 }
 
 export default function SettingsPage() {
@@ -17,6 +18,9 @@ export default function SettingsPage() {
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
   const [saving, setSaving] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [savingEmail, setSavingEmail] = useState(false);
+  const [emailSaved, setEmailSaved] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -24,10 +28,13 @@ export default function SettingsPage() {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("username, is_public, is_admin")
+        .select("username, is_public, is_admin, recovery_email")
         .eq("id", user.id)
         .single();
-      if (data) setProfile(data);
+      if (data) {
+        setProfile(data);
+        setRecoveryEmail(data.recovery_email ?? "");
+      }
     }
     load();
   }, [supabase]);
@@ -44,6 +51,20 @@ export default function SettingsPage() {
       setProfile({ ...profile, is_public: !profile.is_public });
     }
     setSaving(false);
+  }
+
+  async function saveRecoveryEmail() {
+    setSavingEmail(true);
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase
+        .from("profiles")
+        .update({ recovery_email: recoveryEmail.trim() || null })
+        .eq("id", user.id);
+      setEmailSaved(true);
+      setTimeout(() => setEmailSaved(false), 2000);
+    }
+    setSavingEmail(false);
   }
 
   async function signOut() {
@@ -63,8 +84,8 @@ export default function SettingsPage() {
       <div className="space-y-4 max-w-sm mx-auto">
         {/* Profile */}
         <div className="bg-surface rounded-2xl p-4 border border-surface-2">
-          <p className="text-text-secondary text-xs uppercase tracking-widest mb-1">Username</p>
-          <p className="text-text-primary font-semibold">{profile.username}</p>
+          <p className="text-text-secondary text-xs uppercase tracking-widest mb-1">Handle</p>
+          <p className="text-text-primary font-semibold">@{profile.username}</p>
         </div>
 
         {/* Public toggle */}
@@ -86,6 +107,30 @@ export default function SettingsPage() {
               }`}
             />
           </button>
+        </div>
+
+        {/* Recovery email */}
+        <div className="bg-surface rounded-2xl p-4 border border-surface-2">
+          <p className="text-text-primary text-sm font-medium mb-0.5">Recovery Email</p>
+          <p className="text-text-secondary text-xs mb-3">
+            Optional. Only used if you need admin help resetting your password.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={recoveryEmail}
+              onChange={(e) => setRecoveryEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="flex-1 bg-surface-2 border border-surface-2 rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
+            />
+            <button
+              onClick={saveRecoveryEmail}
+              disabled={savingEmail}
+              className="px-3 py-2 bg-neon-pink text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {emailSaved ? "Saved!" : savingEmail ? "..." : "Save"}
+            </button>
+          </div>
         </div>
 
         {/* Admin panel link */}

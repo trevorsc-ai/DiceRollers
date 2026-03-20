@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Dice6 } from "lucide-react";
@@ -10,23 +10,48 @@ export default function LoginPage() {
   const supabase = createClient();
 
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const [email, setEmail] = useState("");
+  const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
-  const [username, setUsername] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
+  const [checkingHandle, setCheckingHandle] = useState(false);
+
+  // Debounced handle availability check (signup only)
+  useEffect(() => {
+    if (mode !== "signup" || handle.length < 3) {
+      setHandleAvailable(null);
+      return;
+    }
+    setCheckingHandle(true);
+    const timer = setTimeout(async () => {
+      const res = await fetch(`/api/check-handle?handle=${encodeURIComponent(handle)}`);
+      const data = await res.json();
+      setHandleAvailable(data.available);
+      setCheckingHandle(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [handle, mode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
+    const normalizedHandle = handle.toLowerCase().trim();
+    const syntheticEmail = `${normalizedHandle}@dicerollers.local`;
+
     if (mode === "signup") {
+      if (handleAvailable === false) {
+        setError("That handle is already taken.");
+        setLoading(false);
+        return;
+      }
       const { error } = await supabase.auth.signUp({
-        email,
+        email: syntheticEmail,
         password,
         options: {
-          data: { username },
+          data: { username: normalizedHandle },
         },
       });
       if (error) {
@@ -38,11 +63,11 @@ export default function LoginPage() {
       router.refresh();
     } else {
       const { error } = await supabase.auth.signInWithPassword({
-        email,
+        email: syntheticEmail,
         password,
       });
       if (error) {
-        setError(error.message);
+        setError("Handle or password is incorrect.");
         setLoading(false);
         return;
       }
@@ -73,7 +98,7 @@ export default function LoginPage() {
         <div className="flex rounded-lg overflow-hidden border border-surface-2 mb-6">
           <button
             type="button"
-            onClick={() => { setMode("login"); setError(null); }}
+            onClick={() => { setMode("login"); setError(null); setHandleAvailable(null); }}
             className={`flex-1 py-2 text-sm font-medium transition-colors ${
               mode === "login"
                 ? "bg-neon-pink text-white"
@@ -96,36 +121,36 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {mode === "signup" && (
-            <div>
-              <label className="block text-xs text-text-secondary mb-1 uppercase tracking-wider">
-                Username
-              </label>
+          <div>
+            <label className="block text-xs text-text-secondary mb-1 uppercase tracking-wider">
+              Handle
+            </label>
+            <div className="relative">
               <input
                 type="text"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                value={handle}
+                onChange={(e) => setHandle(e.target.value)}
                 required
                 minLength={3}
                 maxLength={20}
                 placeholder="your_handle"
                 className="w-full bg-surface-2 border border-surface-2 rounded-lg px-4 py-3 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
               />
+              {mode === "signup" && handle.length >= 3 && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs">
+                  {checkingHandle ? (
+                    <span className="text-text-secondary">...</span>
+                  ) : handleAvailable === true ? (
+                    <span className="text-neon-green">✓</span>
+                  ) : handleAvailable === false ? (
+                    <span className="text-neon-pink">✗</span>
+                  ) : null}
+                </span>
+              )}
             </div>
-          )}
-
-          <div>
-            <label className="block text-xs text-text-secondary mb-1 uppercase tracking-wider">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="you@example.com"
-              className="w-full bg-surface-2 border border-surface-2 rounded-lg px-4 py-3 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
-            />
+            {mode === "signup" && handleAvailable === false && !checkingHandle && (
+              <p className="text-neon-pink text-xs mt-1">Handle already taken</p>
+            )}
           </div>
 
           <div>
@@ -149,15 +174,13 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || (mode === "signup" && handleAvailable === false)}
             className="w-full bg-neon-pink text-white font-display text-xl tracking-widest py-3 rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
           >
             {loading ? "..." : mode === "login" ? "ROLL IN" : "JOIN THE BAR"}
           </button>
         </form>
       </div>
-
-
     </div>
   );
 }

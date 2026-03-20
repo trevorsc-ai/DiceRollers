@@ -7,6 +7,7 @@ export type Database = {
           username: string;
           is_admin: boolean;
           is_public: boolean;
+          recovery_email: string | null;
           created_at: string;
         };
         Insert: {
@@ -14,6 +15,7 @@ export type Database = {
           username: string;
           is_admin?: boolean;
           is_public?: boolean;
+          recovery_email?: string | null;
           created_at?: string;
         };
         Update: {
@@ -21,6 +23,7 @@ export type Database = {
           username?: string;
           is_admin?: boolean;
           is_public?: boolean;
+          recovery_email?: string | null;
           created_at?: string;
         };
       };
