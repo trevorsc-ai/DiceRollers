@@ -4,6 +4,13 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Search, Filter } from "lucide-react";
 
+interface EarnedAchievement {
+  name: string;
+  emoji: string;
+  category_emoji: string;
+  category_name: string;
+}
+
 interface Roll {
   id: number;
   roll_date: string;
@@ -15,6 +22,8 @@ interface Roll {
   red_drink_logo: string | null;
   white_drink_logo: string | null;
   is_doubles: boolean;
+  is_daily_double: boolean;
+  achievements: EarnedAchievement[];
 }
 
 export default function HistoryPage() {
@@ -25,11 +34,23 @@ export default function HistoryPage() {
   const [doublesOnly, setDoublesOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [dailyDoubleLogo, setDailyDoubleLogo] = useState<{ beer: string | null; shot: string | null }>({ beer: null, shot: null });
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      // Fetch daily double logos from menu
+      const { data: ddItems } = await supabase
+        .from("menu_items")
+        .select("die_number, logo_url")
+        .eq("die_color", "daily_double");
+      if (ddItems) {
+        const beer = ddItems.find((i) => i.die_number === 1)?.logo_url ?? null;
+        const shot = ddItems.find((i) => i.die_number === 2)?.logo_url ?? null;
+        setDailyDoubleLogo({ beer, shot });
+      }
 
       const { data } = await supabase
         .from("rolls")
@@ -37,7 +58,31 @@ export default function HistoryPage() {
         .eq("user_id", user.id)
         .order("roll_time", { ascending: false });
 
-      if (data) setRolls(data);
+      if (data) {
+        const rollIds = data.map((r: { id: number }) => r.id);
+        const { data: achievementData } = await supabase
+          .from("user_achievements")
+          .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
+          .in("earned_on_roll_id", rollIds)
+          .not("completed_at", "is", null);
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
+        for (const ua of achievementData ?? []) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const a = (ua as any).achievements;
+          if (!a || !ua.earned_on_roll_id) continue;
+          if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
+          achievementsByRoll[ua.earned_on_roll_id].push({
+            name: a.name,
+            emoji: a.emoji,
+            category_emoji: a.category_emoji,
+            category_name: a.category_name,
+          });
+        }
+
+        setRolls(data.map((r: Roll) => ({ ...r, achievements: achievementsByRoll[r.id] ?? [] })));
+      }
       setLoading(false);
     }
     load();
@@ -112,7 +157,7 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((roll) => (
-            <RollCard key={roll.id} roll={roll} />
+            <RollCard key={roll.id} roll={roll} dailyDoubleLogo={dailyDoubleLogo} />
           ))}
         </div>
       )}
@@ -120,7 +165,7 @@ export default function HistoryPage() {
   );
 }
 
-function RollCard({ roll }: { roll: Roll }) {
+function RollCard({ roll, dailyDoubleLogo }: { roll: Roll; dailyDoubleLogo: { beer: string | null; shot: string | null } }) {
   const date = new Date(roll.roll_time);
   const dateStr = date.toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric",
@@ -128,6 +173,10 @@ function RollCard({ roll }: { roll: Roll }) {
   const timeStr = date.toLocaleTimeString("en-US", {
     hour: "numeric", minute: "2-digit", hour12: true,
   });
+
+  // For daily doubles, show the daily double drink logos (Old Time Lager + Tullamore Dew)
+  const redLogo = roll.is_daily_double ? dailyDoubleLogo.beer : roll.red_drink_logo;
+  const whiteLogo = roll.is_daily_double ? dailyDoubleLogo.shot : roll.white_drink_logo;
 
   return (
     <div className={`bg-surface rounded-2xl p-4 border transition-colors ${
@@ -140,7 +189,7 @@ function RollCard({ roll }: { roll: Roll }) {
         </div>
         {roll.is_doubles && (
           <span className="bg-neon-gold/20 border border-neon-gold text-neon-gold text-xs px-2 py-0.5 rounded-full font-display tracking-wider">
-            DOUBLES!
+            {roll.is_daily_double ? "DAILY DOUBLE!" : "DOUBLES!"}
           </span>
         )}
       </div>
@@ -148,18 +197,31 @@ function RollCard({ roll }: { roll: Roll }) {
       <div className="flex items-center gap-3">
         <DrinkItem
           name={roll.red_drink_name}
-          logo={roll.red_drink_logo}
+          logo={redLogo}
           dieNum={roll.red_die_number}
           color="red"
         />
         <span className="text-text-secondary text-lg">+</span>
         <DrinkItem
           name={roll.white_drink_name}
-          logo={roll.white_drink_logo}
+          logo={whiteLogo}
           dieNum={roll.white_die_number}
           color="white"
         />
       </div>
+
+      {roll.achievements.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mt-3">
+          {roll.achievements.map((a) => (
+            <span
+              key={a.name}
+              className="inline-flex items-center gap-1 text-xs bg-neon-gold/10 border border-neon-gold/30 text-neon-gold px-2 py-0.5 rounded-full"
+            >
+              {a.emoji} {a.name}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
