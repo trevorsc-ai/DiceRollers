@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import Link from "next/link";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
@@ -25,7 +26,7 @@ interface GlobalStats {
   top_beers: { drink_name: string; count: number }[];
   top_shots: { drink_name: string; count: number }[];
   day_of_week: { day_num: number; count: number }[];
-  leaderboard: { username: string; count: number }[];
+  leaderboard: { username: string; count: number; flair: string[] }[];
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -215,9 +216,17 @@ export default function StatsPage() {
             <StatHero label="DBL %" value={`${doublesPercent}%`} color="neon-green" />
           </div>
 
-          {/* Streak — personal only */}
+          {/* Streak + history link — personal only */}
           {mode === "personal" && (
-            <StatHero label="CURRENT STREAK" value={`${streak} day${streak !== 1 ? "s" : ""}`} color="neon-pink" />
+            <>
+              <StatHero label="CURRENT STREAK" value={`${streak} day${streak !== 1 ? "s" : ""}`} color="neon-pink" />
+              <Link
+                href="/history"
+                className="block text-center text-text-secondary text-xs tracking-widest hover:text-neon-pink transition-colors"
+              >
+                VIEW FULL HISTORY →
+              </Link>
+            </>
           )}
 
           {/* Leaderboard — global only, shown first */}
@@ -227,11 +236,14 @@ export default function StatsPage() {
               <div className="space-y-2">
                 {leaderboard.map((entry, i) => (
                   <div key={entry.username} className="flex items-center gap-3">
-                    <span className={`font-display text-lg w-6 ${i === 0 ? "text-neon-gold" : i === 1 ? "text-text-secondary" : i === 2 ? "text-neon-pink/60" : "text-text-secondary"}`}>
+                    <span className={`font-display text-lg w-6 shrink-0 ${i === 0 ? "text-neon-gold" : i === 1 ? "text-text-secondary" : i === 2 ? "text-neon-pink/60" : "text-text-secondary"}`}>
                       {i + 1}
                     </span>
-                    <span className="flex-1 text-text-primary text-sm">{entry.username}</span>
-                    <span className="text-text-secondary text-sm">{entry.count} rolls</span>
+                    <span className="text-text-primary text-sm">{entry.username}</span>
+                    {entry.flair && entry.flair.length > 0 && (
+                      <span className="text-sm leading-none">{entry.flair.join("")}</span>
+                    )}
+                    <span className="ml-auto text-text-secondary text-sm shrink-0">{entry.count} rolls</span>
                   </div>
                 ))}
               </div>

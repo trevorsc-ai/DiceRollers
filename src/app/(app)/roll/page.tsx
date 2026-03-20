@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import DiePicker from "@/components/DiePicker";
 import DoublesConfetti from "@/components/DoublesConfetti";
 import MalortCelebration from "@/components/MalortCelebration";
-import { CheckCircle, Users } from "lucide-react";
+import AchievementModal from "@/components/AchievementModal";
+import { CheckCircle, Users, Settings } from "lucide-react";
+import type { AchievementInfo } from "@/lib/achievements";
 
 interface MenuItem {
-  die_color: "red" | "white";
+  die_color: string;
   die_number: number;
   drink_name: string;
   logo_url: string | null;
@@ -32,6 +35,12 @@ export default function RollPage() {
   const [goingPublic, setGoingPublic] = useState(false);
   const [madePublic, setMadePublic] = useState(false);
 
+  // Daily Double
+  const [dailyDoubleChoice, setDailyDoubleChoice] = useState<boolean | null>(null);
+
+  // Achievement celebration
+  const [newAchievements, setNewAchievements] = useState<AchievementInfo[]>([]);
+
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", {
     weekday: "long", month: "long", day: "numeric",
@@ -43,18 +52,37 @@ export default function RollPage() {
   const isDoubles = redDie !== null && whiteDie !== null && redDie === whiteDie;
   const isMalort = whiteDie === 6;
 
-  const getMenuItem = useCallback((color: "red" | "white", num: number): DrinkDisplay | null => {
-    const item = menu.find((m) => m.die_color === color && m.die_number === num);
-    if (!item) return null;
-    return { name: item.drink_name, logo: item.logo_url };
-  }, [menu]);
+  const getMenuItem = useCallback(
+    (color: string, num: number): DrinkDisplay | null => {
+      const item = menu.find((m) => m.die_color === color && m.die_number === num);
+      if (!item) return null;
+      return { name: item.drink_name, logo: item.logo_url };
+    },
+    [menu]
+  );
 
-  const redDrink = redDie !== null ? getMenuItem("red", redDie) : null;
-  const whiteDrink = whiteDie !== null ? getMenuItem("white", whiteDie) : null;
+  const regularRedDrink = redDie !== null ? getMenuItem("red", redDie) : null;
+  const regularWhiteDrink = whiteDie !== null ? getMenuItem("white", whiteDie) : null;
+
+  const dailyDoubleBeer = getMenuItem("daily_double", 1);
+  const dailyDoubleShot = getMenuItem("daily_double", 2);
+
+  // The drinks actually shown / saved depend on daily double choice
+  const displayRedDrink =
+    isDoubles && dailyDoubleChoice === true ? dailyDoubleBeer : regularRedDrink;
+  const displayWhiteDrink =
+    isDoubles && dailyDoubleChoice === true ? dailyDoubleShot : regularWhiteDrink;
+
+  // Reset daily double choice when dice change
+  useEffect(() => {
+    setDailyDoubleChoice(null);
+  }, [redDie, whiteDie]);
 
   useEffect(() => {
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
         const { data: profile } = await supabase
@@ -77,24 +105,47 @@ export default function RollPage() {
 
   async function handleSave() {
     if (redDie === null || whiteDie === null || !userId) return;
-    const redDrinkItem = getMenuItem("red", redDie);
-    const whiteDrinkItem = getMenuItem("white", whiteDie);
-    if (!redDrinkItem || !whiteDrinkItem) return;
+    if (isDoubles && dailyDoubleChoice === null) return; // must choose
+
+    const takingDailyDouble = isDoubles && dailyDoubleChoice === true;
+    const redDrink = takingDailyDouble ? dailyDoubleBeer : regularRedDrink;
+    const whiteDrink = takingDailyDouble ? dailyDoubleShot : regularWhiteDrink;
+
+    if (!redDrink || !whiteDrink) return;
 
     setSaving(true);
-    const { error } = await supabase.from("rolls").insert({
-      user_id: userId,
-      roll_date: new Date().toLocaleDateString("en-CA"),
-      roll_time: new Date().toISOString(),
-      red_die_number: redDie,
-      white_die_number: whiteDie,
-      red_drink_name: redDrinkItem.name,
-      white_drink_name: whiteDrinkItem.name,
-      red_drink_logo: redDrinkItem.logo,
-      white_drink_logo: whiteDrinkItem.logo,
+    const res = await fetch("/api/rolls", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        redDieNumber: redDie,
+        whiteDieNumber: whiteDie,
+        redDrinkName: redDrink.name,
+        whiteDrinkName: whiteDrink.name,
+        redDrinkLogo: redDrink.logo,
+        whiteDrinkLogo: whiteDrink.logo,
+        dailyDouble: takingDailyDouble,
+      }),
     });
     setSaving(false);
-    if (!error) setSaved(true);
+
+    if (res.ok) {
+      const { newAchievements: earned } = await res.json();
+      setSaved(true);
+      if (earned && earned.length > 0) {
+        // Persist to localStorage so bottom nav can show notification dot
+        try {
+          const existing = JSON.parse(localStorage.getItem("new_achievements") ?? "[]");
+          localStorage.setItem(
+            "new_achievements",
+            JSON.stringify([...existing, ...earned.map((a: AchievementInfo) => a.id)])
+          );
+        } catch {
+          // ignore
+        }
+        setNewAchievements(earned);
+      }
+    }
   }
 
   async function handleMakePublic() {
@@ -111,20 +162,42 @@ export default function RollPage() {
     setWhiteDie(null);
     setSaved(false);
     setMadePublic(false);
+    setDailyDoubleChoice(null);
+    setNewAchievements([]);
   }
+
+  const canSave =
+    redDie !== null &&
+    whiteDie !== null &&
+    !saving &&
+    (!isDoubles || dailyDoubleChoice !== null);
 
   return (
     <div className="min-h-screen bg-background px-4 py-6">
-      {/* Animations — fire on die selection, not just after save */}
+      {/* Animations */}
       {isDoubles && <DoublesConfetti active />}
       {isMalort && !isDoubles && <MalortCelebration active />}
 
+      {/* Achievement celebration modal */}
+      {newAchievements.length > 0 && (
+        <AchievementModal
+          achievements={newAchievements}
+          onClose={() => setNewAchievements([])}
+        />
+      )}
+
       {/* Header */}
-      <div className="text-center mb-6">
-        <h1 className="font-display text-4xl neon-text-pink tracking-widest">ROLL</h1>
-        <p className="text-text-secondary text-xs mt-1">
-          {dateStr} · {timeStr}
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div className="w-8" />
+        <div className="text-center">
+          <h1 className="font-display text-4xl neon-text-pink tracking-widest">ROLL</h1>
+          <p className="text-text-secondary text-xs mt-1">
+            {dateStr} · {timeStr}
+          </p>
+        </div>
+        <Link href="/settings" className="text-text-secondary hover:text-text-primary">
+          <Settings className="w-5 h-5" />
+        </Link>
       </div>
 
       {/* Dice pickers */}
@@ -134,32 +207,62 @@ export default function RollPage() {
       </div>
 
       {/* Drink display */}
-      {(redDrink || whiteDrink) && (
+      {(displayRedDrink || displayWhiteDrink) && (
         <div className="bg-surface rounded-2xl p-4 mb-6 border border-surface-2 animate-scale-in">
           <p className="text-text-secondary text-xs uppercase tracking-widest text-center mb-3">
             Tonight&apos;s Combo
           </p>
           <div className="flex items-center justify-around">
-            {redDrink && (
-              <DrinkCard drink={redDrink} dieColor="red" dieNum={redDie!} />
+            {displayRedDrink && (
+              <DrinkCard drink={displayRedDrink} dieColor="red" dieNum={redDie!} />
             )}
-            {redDrink && whiteDrink && (
+            {displayRedDrink && displayWhiteDrink && (
               <div className="text-text-secondary text-2xl">+</div>
             )}
-            {whiteDrink && (
-              <DrinkCard drink={whiteDrink} dieColor="white" dieNum={whiteDie!} />
+            {displayWhiteDrink && (
+              <DrinkCard drink={displayWhiteDrink} dieColor="white" dieNum={whiteDie!} />
             )}
           </div>
 
-          {/* Doubles bonus */}
-          {isDoubles && (
-            <div className="mt-4 pt-4 border-t border-surface-2 text-center">
-              <p className="font-display text-xl neon-text-gold tracking-widest animate-pulse-neon">
+          {/* Daily Double opt-in — shown when doubles are rolled and not yet saved */}
+          {isDoubles && !saved && (
+            <div className="mt-4 pt-4 border-t border-surface-2">
+              <p className="font-display text-xl neon-text-gold tracking-widest text-center animate-pulse-neon mb-3">
                 🎲 DOUBLES! 🎲
               </p>
-              <p className="text-text-primary text-sm mt-1">
-                You could opt for: <span className="text-neon-gold">Old Time Lager</span> + <span className="text-neon-gold">Tullamore Dew shot!</span>
-              </p>
+
+              {dailyDoubleBeer && dailyDoubleShot && (
+                <div className="space-y-2">
+                  <p className="text-text-secondary text-xs text-center">
+                    Take the Daily Double instead?
+                  </p>
+                  <p className="text-neon-gold text-xs text-center">
+                    {dailyDoubleBeer.name} + {dailyDoubleShot.name}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setDailyDoubleChoice(true)}
+                      className={`flex-1 py-2.5 rounded-xl font-display text-sm tracking-widest border transition-all ${
+                        dailyDoubleChoice === true
+                          ? "bg-neon-gold text-background border-neon-gold"
+                          : "border-neon-gold/40 text-neon-gold hover:border-neon-gold"
+                      }`}
+                    >
+                      YES — DAILY DOUBLE
+                    </button>
+                    <button
+                      onClick={() => setDailyDoubleChoice(false)}
+                      className={`flex-1 py-2.5 rounded-xl font-display text-sm tracking-widest border transition-all ${
+                        dailyDoubleChoice === false
+                          ? "bg-surface-2 text-text-primary border-surface-2"
+                          : "border-surface-2 text-text-secondary hover:text-text-primary"
+                      }`}
+                    >
+                      NO — KEEP IT
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -178,7 +281,7 @@ export default function RollPage() {
       {!saved ? (
         <button
           onClick={handleSave}
-          disabled={redDie === null || whiteDie === null || saving}
+          disabled={!canSave}
           className="w-full bg-neon-pink text-white font-display text-2xl tracking-widest py-4 rounded-2xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-30"
         >
           {saving ? "SAVING..." : "SAVE ROLL"}
@@ -212,7 +315,9 @@ export default function RollPage() {
           )}
 
           {madePublic && (
-            <p className="text-center text-neon-green text-sm">You&apos;re now public — welcome to the feed!</p>
+            <p className="text-center text-neon-green text-sm">
+              You&apos;re now public — welcome to the feed!
+            </p>
           )}
 
           <button
@@ -227,9 +332,13 @@ export default function RollPage() {
   );
 }
 
-function DrinkCard({ drink, dieColor, dieNum }: {
+function DrinkCard({
+  drink,
+  dieColor,
+  dieNum,
+}: {
   drink: { name: string; logo: string | null };
-  dieColor: "red" | "white";
+  dieColor: string;
   dieNum: number;
 }) {
   const isRed = dieColor === "red";
@@ -242,9 +351,15 @@ function DrinkCard({ drink, dieColor, dieNum }: {
       >
         {drink.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={drink.logo} alt={drink.name} className="w-12 h-12 object-contain rounded-lg" />
+          <img
+            src={drink.logo}
+            alt={drink.name}
+            className="w-12 h-12 object-contain rounded-lg"
+          />
         ) : (
-          <span className={`font-display text-2xl ${isRed ? "text-neon-pink" : "text-text-primary"}`}>
+          <span
+            className={`font-display text-2xl ${isRed ? "text-neon-pink" : "text-text-primary"}`}
+          >
             {dieNum}
           </span>
         )}

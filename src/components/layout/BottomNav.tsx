@@ -2,19 +2,49 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dice6, Clock, BarChart2, Users, Settings } from "lucide-react";
+import { Dice6, BarChart2, Trophy, Users } from "lucide-react";
+import { useEffect, useState } from "react";
 
 const tabs = [
-  { href: "/roll",     label: "Roll",    Icon: Dice6 },
-  { href: "/history",  label: "History", Icon: Clock },
-  { href: "/stats",    label: "Stats",   Icon: BarChart2 },
-  { href: "/feed",     label: "Feed",    Icon: Users },
-  { href: "/settings", label: "Profile", Icon: Settings },
+  { href: "/roll",         label: "Roll",         Icon: Dice6 },
+  { href: "/stats",        label: "Stats",        Icon: BarChart2 },
+  { href: "/achievements", label: "Achievements", Icon: Trophy },
+  { href: "/feed",         label: "Feed",         Icon: Users },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const visibleTabs = tabs;
+  const [hasNewAchievements, setHasNewAchievements] = useState(false);
+
+  useEffect(() => {
+    function checkDot() {
+      try {
+        const stored = JSON.parse(localStorage.getItem("new_achievements") ?? "[]");
+        setHasNewAchievements(Array.isArray(stored) && stored.length > 0);
+      } catch {
+        setHasNewAchievements(false);
+      }
+    }
+
+    checkDot();
+
+    // Re-check when storage changes (e.g. after achievement earned)
+    window.addEventListener("storage", checkDot);
+    // Also poll on visibility change so the dot clears when returning from achievements
+    document.addEventListener("visibilitychange", checkDot);
+
+    return () => {
+      window.removeEventListener("storage", checkDot);
+      document.removeEventListener("visibilitychange", checkDot);
+    };
+  }, []);
+
+  // Clear dot when on achievements page
+  useEffect(() => {
+    if (pathname === "/achievements") {
+      setHasNewAchievements(false);
+    }
+  }, [pathname]);
 
   return (
     <nav
@@ -22,8 +52,10 @@ export default function BottomNav() {
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="flex items-stretch h-16 max-w-lg mx-auto">
-        {visibleTabs.map(({ href, label, Icon }) => {
+        {tabs.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
+          const showDot = href === "/achievements" && hasNewAchievements && !active;
+
           return (
             <Link
               key={href}
@@ -34,7 +66,12 @@ export default function BottomNav() {
                   : "text-text-secondary hover:text-text-primary"
               }`}
             >
-              <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 1.5} />
+              <div className="relative">
+                <Icon className="w-5 h-5" strokeWidth={active ? 2.5 : 1.5} />
+                {showDot && (
+                  <span className="absolute -top-1 -right-1 w-2 h-2 bg-neon-pink rounded-full" />
+                )}
+              </div>
               <span className={`text-[9px] tracking-wider ${active ? "font-semibold" : ""}`}>
                 {label.toUpperCase()}
               </span>

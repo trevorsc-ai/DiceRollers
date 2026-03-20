@@ -6,7 +6,7 @@ import { Pencil, Check, X, Upload } from "lucide-react";
 
 interface MenuItem {
   id: number;
-  die_color: "red" | "white";
+  die_color: "red" | "white" | "daily_double";
   die_number: number;
   drink_name: string;
   logo_url: string | null;
@@ -119,6 +119,7 @@ export default function MenuPage() {
 
   const redItems = menu.filter((m) => m.die_color === "red").sort((a, b) => a.die_number - b.die_number);
   const whiteItems = menu.filter((m) => m.die_color === "white").sort((a, b) => a.die_number - b.die_number);
+  const dailyDoubleItems = menu.filter((m) => m.die_color === "daily_double").sort((a, b) => a.die_number - b.die_number);
 
   return (
     <div className="min-h-screen bg-background px-4 py-6">
@@ -161,6 +162,85 @@ export default function MenuPage() {
           onFileChange={handleFileChange}
         />
       </div>
+
+      {/* Daily Double section */}
+      {dailyDoubleItems.length > 0 && (
+        <div className="mt-6">
+          <h2 className="font-display text-lg tracking-widest mb-1 text-neon-gold">🎲 DAILY DOUBLE</h2>
+          <p className="text-text-secondary text-xs mb-3">Shown as substitute when players roll doubles</p>
+          <div className="grid grid-cols-2 gap-4">
+            {dailyDoubleItems.map((item) => {
+              const label = item.die_number === 1 ? "Beer" : "Shot";
+              return (
+                <div
+                  key={item.id}
+                  className={`bg-surface rounded-xl p-3 border transition-colors ${
+                    editingId === item.id ? "border-neon-gold" : "border-neon-gold/20"
+                  }`}
+                >
+                  <p className="text-neon-gold text-[10px] uppercase tracking-widest mb-2">{label}</p>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg shrink-0 overflow-hidden bg-surface-2 flex items-center justify-center">
+                      {(editingId === item.id ? editLogoPreview : item.logo_url) ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={(editingId === item.id ? editLogoPreview : item.logo_url)!}
+                          alt={item.drink_name}
+                          className="w-full h-full object-contain"
+                        />
+                      ) : (
+                        <span className="text-text-secondary text-xs">?</span>
+                      )}
+                    </div>
+                    {editingId === item.id ? (
+                      <input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="flex-1 bg-surface-2 border border-neon-gold/40 rounded px-2 py-1 text-text-primary text-xs focus:outline-none focus:border-neon-gold min-w-0"
+                        autoFocus
+                      />
+                    ) : (
+                      <span className="flex-1 text-text-primary text-xs font-medium leading-tight min-w-0 truncate">
+                        {item.drink_name}
+                      </span>
+                    )}
+                    {isAdmin && (
+                      editingId === item.id ? (
+                        <div className="flex gap-1 shrink-0">
+                          <button
+                            onClick={() => fileRef.current?.click()}
+                            className="text-text-secondary hover:text-neon-gold"
+                            title="Upload logo"
+                          >
+                            <Upload className="w-3 h-3" />
+                          </button>
+                          <button
+                            onClick={() => saveEdit(item)}
+                            disabled={saving}
+                            className="text-neon-green"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button onClick={cancelEdit} className="text-neon-pink">
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => startEdit(item)}
+                          className="text-text-secondary hover:text-neon-gold shrink-0"
+                        >
+                          <Pencil className="w-3 h-3" />
+                        </button>
+                      )
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
