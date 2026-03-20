@@ -157,9 +157,7 @@ export default function LoginPage() {
         </form>
       </div>
 
-      <p className="text-text-secondary text-xs mt-8 text-center">
-        116 Kennedy St NW · Washington DC
-      </p>
+
     </div>
   );
 }
