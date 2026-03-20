@@ -1,0 +1,282 @@
+/**
+ * recalculate-achievements.mjs
+ *
+ * Wipes and recomputes all user_achievements rows from scratch based on
+ * current rolls in the database.
+ *
+ * Usage:
+ *   node --env-file=.env.local scripts/recalculate-achievements.mjs
+ *
+ * Or to target a specific user only:
+ *   node --env-file=.env.local scripts/recalculate-achievements.mjs --user=<uuid>
+ */
+
+import { createClient } from "@supabase/supabase-js";
+
+// ── Config ──────────────────────────────────────────────────────────────────
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
+  console.error("Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY");
+  process.exit(1);
+}
+
+const targetUser = process.argv
+  .find((a) => a.startsWith("--user="))
+  ?.split("=")[1];
+
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: { persistSession: false },
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function getNYHour(timestamp) {
+  return parseInt(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      hour: "numeric",
+      hour12: false,
+    }).format(timestamp)
+  );
+}
+
+const SPECIAL_COMBOS = [
+  { id: "high_abv", redDrink: "Raging Bitch", whiteDrink: "Rumple Minze" },
+  { id: "the_freshman", redDrink: "Whiteclaw", whiteDrink: "Espolon" },
+  { id: "chicago_charcuterie", redDrink: "High Life", whiteDrink: "Malort" },
+  { id: "the_regular", redDrink: "Mickeys", whiteDrink: "Malort" },
+];
+
+// ── Achievement evaluation (full recalc from all rolls) ───────────────────────
+
+function computeAchievements(rolls) {
+  /**
+   * rolls: array sorted ascending by roll_time, each with:
+   *   { id, roll_date, roll_time, red_die_number, white_die_number,
+   *     red_drink_name, white_drink_name, is_doubles, is_daily_double }
+   */
+
+  const results = {}; // achievementId -> { progress, progress_detail, completed_at }
+
+  function upsert(id, progress, target, detail = null) {
+    const isComplete = progress >= target;
+    results[id] = {
+      progress,
+      progress_detail: detail,
+      completed_at: isComplete ? new Date().toISOString() : null,
+    };
+  }
+
+  function markComplete(id) {
+    results[id] = {
+      progress: 1,
+      progress_detail: null,
+      completed_at: new Date().toISOString(),
+    };
+  }
+
+  // ── YOU'RE A REGULAR ──────────────────────────────────────────────────────
+
+  // Malort Advent Calendar: Roll Malort (white=6) 25 times
+  const malortCount = rolls.filter((r) => r.white_die_number === 6).length;
+  upsert("malort_advent_calendar", malortCount, 25);
+
+  // The Punch Card: Roll each 1–8 on BOTH dice
+  const redHit = new Set(rolls.map((r) => r.red_die_number));
+  const whiteHit = new Set(rolls.map((r) => r.white_die_number));
+  upsert(
+    "the_punch_card",
+    redHit.size + whiteHit.size,
+    16,
+    { red: Array.from(redHit).sort((a, b) => a - b), white: Array.from(whiteHit).sort((a, b) => a - b) }
+  );
+
+  // Double Trouble: All 8 unique doubles
+  const uniqueDoubles = new Set(
+    rolls.filter((r) => r.is_doubles).map((r) => r.red_die_number)
+  );
+  upsert(
+    "double_trouble",
+    uniqueDoubles.size,
+    8,
+    { numbers: Array.from(uniqueDoubles).sort((a, b) => a - b) }
+  );
+
+  // Around the World: All 64 unique combos
+  const uniqueCombos = new Set(
+    rolls.map((r) => `${r.red_die_number}-${r.white_die_number}`)
+  );
+  upsert("around_the_world", uniqueCombos.size, 64, {
+    combos: Array.from(uniqueCombos),
+  });
+
+  // ── THE CRAPS TABLE ───────────────────────────────────────────────────────
+
+  // Feeling Lucky: doubles twice in a row (at any point in history)
+  for (let i = 1; i < rolls.length; i++) {
+    if (rolls[i].is_doubles && rolls[i - 1].is_doubles) {
+      markComplete("feeling_lucky");
+      break;
+    }
+  }
+
+  // On Fire: doubles three times in a row
+  for (let i = 2; i < rolls.length; i++) {
+    if (rolls[i].is_doubles && rolls[i - 1].is_doubles && rolls[i - 2].is_doubles) {
+      markComplete("on_fire");
+      break;
+    }
+  }
+
+  // Deja Vu: same combo twice in one night
+  const rollsByDate = {};
+  for (const r of rolls) {
+    (rollsByDate[r.roll_date] ??= []).push(`${r.red_die_number}-${r.white_die_number}`);
+  }
+  for (const combos of Object.values(rollsByDate)) {
+    if (combos.length > new Set(combos).size) {
+      markComplete("deja_vu");
+      break;
+    }
+  }
+
+  // ── SPECIAL COMBINATIONS ─────────────────────────────────────────────────
+
+  for (const combo of SPECIAL_COMBOS) {
+    const hit = rolls.find(
+      (r) => r.red_drink_name === combo.redDrink && r.white_drink_name === combo.whiteDrink
+    );
+    if (hit) markComplete(combo.id);
+  }
+
+  // ── CLOCKING IN ──────────────────────────────────────────────────────────
+
+  for (const r of rolls) {
+    const hour = getNYHour(new Date(r.roll_time));
+    if (!results["early_bird"]?.completed_at && hour === 17) markComplete("early_bird");
+    if (!results["night_owl"]?.completed_at && hour >= 1 && hour <= 3) markComplete("night_owl");
+  }
+
+  // ── DANGER ZONE ──────────────────────────────────────────────────────────
+
+  // Run It Back: 2+ rolls same night
+  for (const nightRolls of Object.values(rollsByDate)) {
+    if (nightRolls.length >= 2) {
+      markComplete("run_it_back");
+      break;
+    }
+  }
+
+  // Power Hour: any 60-min window with 2+ rolls
+  outer_power: for (let i = 0; i < rolls.length; i++) {
+    const t = new Date(rolls[i].roll_time).getTime();
+    const windowStart = t - 60 * 60 * 1000;
+    let count = 0;
+    for (let j = i; j >= 0; j--) {
+      if (new Date(rolls[j].roll_time).getTime() >= windowStart) count++;
+      else break;
+    }
+    if (count >= 2) {
+      markComplete("power_hour");
+      break outer_power;
+    }
+  }
+
+  // Slow Down: any 60-min window with 3+ rolls
+  outer_slow: for (let i = 0; i < rolls.length; i++) {
+    const t = new Date(rolls[i].roll_time).getTime();
+    const windowStart = t - 60 * 60 * 1000;
+    let count = 0;
+    for (let j = i; j >= 0; j--) {
+      if (new Date(rolls[j].roll_time).getTime() >= windowStart) count++;
+      else break;
+    }
+    if (count >= 3) {
+      markComplete("slow_down");
+      break outer_slow;
+    }
+  }
+
+  return results;
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
+
+async function recalculateUser(userId) {
+  // Fetch all rolls for this user sorted chronologically
+  const { data: rolls, error: rollsErr } = await supabase
+    .from("rolls")
+    .select(
+      "id, roll_date, roll_time, red_die_number, white_die_number, red_drink_name, white_drink_name, is_doubles, is_daily_double"
+    )
+    .eq("user_id", userId)
+    .order("roll_time", { ascending: true });
+
+  if (rollsErr) throw new Error(`Fetching rolls for ${userId}: ${rollsErr.message}`);
+
+  console.log(`  ${rolls.length} rolls`);
+
+  // Compute what achievements should look like
+  const computed = computeAchievements(rolls || []);
+
+  // Delete existing achievements for this user
+  const { error: delErr } = await supabase
+    .from("user_achievements")
+    .delete()
+    .eq("user_id", userId);
+  if (delErr) throw new Error(`Deleting achievements for ${userId}: ${delErr.message}`);
+
+  // Insert fresh rows (only for achievements that have any progress)
+  const rows = Object.entries(computed)
+    .filter(([, v]) => v.progress > 0 || v.completed_at)
+    .map(([achievement_id, v]) => ({
+      user_id: userId,
+      achievement_id,
+      progress: v.progress,
+      progress_detail: v.progress_detail,
+      completed_at: v.completed_at,
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (rows.length > 0) {
+    const { error: insertErr } = await supabase.from("user_achievements").insert(rows);
+    if (insertErr) throw new Error(`Inserting achievements for ${userId}: ${insertErr.message}`);
+  }
+
+  const earned = rows.filter((r) => r.completed_at).map((r) => r.achievement_id);
+  console.log(`  Earned: ${earned.length > 0 ? earned.join(", ") : "(none)"}`);
+  console.log(`  In progress: ${rows.filter((r) => !r.completed_at).length}`);
+}
+
+async function main() {
+  let userIds;
+
+  if (targetUser) {
+    userIds = [targetUser];
+    console.log(`Targeting single user: ${targetUser}`);
+  } else {
+    // Get all users who have rolls
+    const { data: users, error } = await supabase
+      .from("rolls")
+      .select("user_id")
+      .order("user_id");
+    if (error) throw new Error(`Fetching users: ${error.message}`);
+    userIds = [...new Set(users.map((u) => u.user_id))];
+    console.log(`Found ${userIds.length} user(s) with rolls`);
+  }
+
+  for (const userId of userIds) {
+    console.log(`\nProcessing ${userId}...`);
+    await recalculateUser(userId);
+  }
+
+  console.log("\nDone!");
+}
+
+main().catch((err) => {
+  console.error("Fatal:", err.message);
+  process.exit(1);
+});
