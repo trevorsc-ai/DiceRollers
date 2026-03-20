@@ -84,6 +84,8 @@ export default function RollPage() {
     setSaving(true);
     const { error } = await supabase.from("rolls").insert({
       user_id: userId,
+      roll_date: new Date().toLocaleDateString("en-CA"),
+      roll_time: new Date().toISOString(),
       red_die_number: redDie,
       white_die_number: whiteDie,
       red_drink_name: redDrinkItem.name,
