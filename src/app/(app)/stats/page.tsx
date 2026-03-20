@@ -220,6 +220,24 @@ export default function StatsPage() {
             <StatHero label="CURRENT STREAK" value={`${streak} day${streak !== 1 ? "s" : ""}`} color="neon-pink" />
           )}
 
+          {/* Leaderboard — global only, shown first */}
+          {mode === "global" && leaderboard.length > 0 && (
+            <div className="bg-surface rounded-2xl p-4 border border-surface-2">
+              <h2 className="font-display text-xl neon-text-gold tracking-widest mb-4">🏆 LEADERBOARD</h2>
+              <div className="space-y-2">
+                {leaderboard.map((entry, i) => (
+                  <div key={entry.username} className="flex items-center gap-3">
+                    <span className={`font-display text-lg w-6 ${i === 0 ? "text-neon-gold" : i === 1 ? "text-text-secondary" : i === 2 ? "text-neon-pink/60" : "text-text-secondary"}`}>
+                      {i + 1}
+                    </span>
+                    <span className="flex-1 text-text-primary text-sm">{entry.username}</span>
+                    <span className="text-text-secondary text-sm">{entry.count} rolls</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {totalRolls > 0 && (
             <>
               <ChartCard title="🔴 Red Die Frequency">
@@ -323,23 +341,6 @@ export default function StatsPage() {
             </div>
           )}
 
-          {/* Leaderboard — global only */}
-          {mode === "global" && leaderboard.length > 0 && (
-            <div className="bg-surface rounded-2xl p-4 border border-surface-2">
-              <h2 className="font-display text-xl neon-text-gold tracking-widest mb-4">🏆 LEADERBOARD</h2>
-              <div className="space-y-2">
-                {leaderboard.map((entry, i) => (
-                  <div key={entry.username} className="flex items-center gap-3">
-                    <span className={`font-display text-lg w-6 ${i === 0 ? "text-neon-gold" : i === 1 ? "text-text-secondary" : i === 2 ? "text-neon-pink/60" : "text-text-secondary"}`}>
-                      {i + 1}
-                    </span>
-                    <span className="flex-1 text-text-primary text-sm">{entry.username}</span>
-                    <span className="text-text-secondary text-sm">{entry.count} rolls</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>
