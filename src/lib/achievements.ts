@@ -38,7 +38,8 @@ const SPECIAL_COMBOS: Array<{ id: string; redDrink: string; whiteDrink: string }
 export async function evaluateAchievements(
   adminSupabase: SupabaseClient,
   userId: string,
-  roll: RollRecord
+  roll: RollRecord,
+  rollId: number
 ): Promise<AchievementInfo[]> {
   // Fetch current achievement state for this user
   const { data: existing } = await adminSupabase
@@ -71,6 +72,7 @@ export async function evaluateAchievements(
         achievement_id: achievementId,
         progress: 1,
         completed_at: new Date().toISOString(),
+        earned_on_roll_id: rollId,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,achievement_id" }
@@ -94,6 +96,7 @@ export async function evaluateAchievements(
         progress,
         progress_detail: progressDetail ?? null,
         completed_at: isComplete ? new Date().toISOString() : null,
+        earned_on_roll_id: isComplete ? rollId : null,
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,achievement_id" }

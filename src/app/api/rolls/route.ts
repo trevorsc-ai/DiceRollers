@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
   const adminSupabase = createAdminClient();
   let newAchievements: Awaited<ReturnType<typeof evaluateAchievements>> = [];
   try {
-    newAchievements = await evaluateAchievements(adminSupabase, user.id, rollData);
+    newAchievements = await evaluateAchievements(adminSupabase, user.id, rollData, rollData.id);
   } catch {
     // Achievement evaluation errors shouldn't fail the roll save
   }

@@ -3,6 +3,13 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
+interface EarnedAchievement {
+  name: string;
+  emoji: string;
+  category_emoji: string;
+  category_name: string;
+}
+
 interface FeedRoll {
   id: number;
   roll_time: string;
@@ -13,10 +20,12 @@ interface FeedRoll {
   red_drink_logo: string | null;
   white_drink_logo: string | null;
   is_doubles: boolean;
+  is_daily_double: boolean;
   user_id: string;
   username: string;
   likeCount: number;
   likedByMe: boolean;
+  achievements: EarnedAchievement[];
 }
 
 export default function FeedPage() {
@@ -24,11 +33,23 @@ export default function FeedPage() {
   const [rolls, setRolls] = useState<FeedRoll[]>([]);
   const [loading, setLoading] = useState(true);
   const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [dailyDoubleLogo, setDailyDoubleLogo] = useState<{ beer: string | null; shot: string | null }>({ beer: null, shot: null });
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setMyUserId(user.id);
+
+      // Fetch daily double logos from menu
+      const { data: ddItems } = await supabase
+        .from("menu_items")
+        .select("die_number, logo_url")
+        .eq("die_color", "daily_double");
+      if (ddItems) {
+        const beer = ddItems.find((i) => i.die_number === 1)?.logo_url ?? null;
+        const shot = ddItems.find((i) => i.die_number === 2)?.logo_url ?? null;
+        setDailyDoubleLogo({ beer, shot });
+      }
 
       // Fetch public rolls joined with profiles
       const { data: rollData } = await supabase
@@ -36,7 +57,7 @@ export default function FeedPage() {
         .select(`
           id, roll_time, red_die_number, white_die_number,
           red_drink_name, white_drink_name, red_drink_logo, white_drink_logo,
-          is_doubles, user_id,
+          is_doubles, is_daily_double, user_id,
           profiles!inner(username, is_public),
           roll_likes(user_id)
         `)
@@ -45,6 +66,30 @@ export default function FeedPage() {
         .limit(50);
 
       if (rollData) {
+        // Fetch achievements earned on these rolls
+        const rollIds = rollData.map((r: { id: number }) => r.id);
+        const { data: achievementData } = await supabase
+          .from("user_achievements")
+          .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
+          .in("earned_on_roll_id", rollIds)
+          .not("completed_at", "is", null);
+
+        // Build a map of roll_id → achievements
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
+        for (const ua of achievementData ?? []) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const a = (ua as any).achievements;
+          if (!a || !ua.earned_on_roll_id) continue;
+          if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
+          achievementsByRoll[ua.earned_on_roll_id].push({
+            name: a.name,
+            emoji: a.emoji,
+            category_emoji: a.category_emoji,
+            category_name: a.category_name,
+          });
+        }
+
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mapped: FeedRoll[] = rollData.map((r: any) => ({
           id: r.id,
@@ -56,10 +101,12 @@ export default function FeedPage() {
           red_drink_logo: r.red_drink_logo,
           white_drink_logo: r.white_drink_logo,
           is_doubles: r.is_doubles,
+          is_daily_double: r.is_daily_double ?? false,
           user_id: r.user_id,
           username: r.profiles?.username ?? "anonymous",
           likeCount: r.roll_likes?.length ?? 0,
           likedByMe: r.roll_likes?.some((l: { user_id: string }) => l.user_id === user?.id) ?? false,
+          achievements: achievementsByRoll[r.id] ?? [],
         }));
         setRolls(mapped);
       }
@@ -118,6 +165,7 @@ export default function FeedPage() {
               roll={roll}
               myUserId={myUserId}
               onToggleLike={toggleLike}
+              dailyDoubleLogo={dailyDoubleLogo}
             />
           ))}
         </div>
@@ -127,11 +175,12 @@ export default function FeedPage() {
 }
 
 function FeedCard({
-  roll, onToggleLike,
+  roll, onToggleLike, dailyDoubleLogo,
 }: {
   roll: FeedRoll;
   myUserId: string | null;
   onToggleLike: (id: number, likedByMe: boolean) => void;
+  dailyDoubleLogo: { beer: string | null; shot: string | null };
 }) {
   const [bouncing, setBouncing] = useState(false);
 
@@ -143,6 +192,10 @@ function FeedCard({
 
   const timeAgo = formatTimeAgo(roll.roll_time);
 
+  // For daily doubles, show the daily double drink logos (Old Time Lager + Tullamore Dew)
+  const redLogo = roll.is_daily_double ? dailyDoubleLogo.beer : roll.red_drink_logo;
+  const whiteLogo = roll.is_daily_double ? dailyDoubleLogo.shot : roll.white_drink_logo;
+
   return (
     <div className={`bg-surface rounded-2xl p-4 border ${roll.is_doubles ? "border-neon-gold/40" : "border-surface-2"}`}>
       {/* Header */}
@@ -152,8 +205,12 @@ function FeedCard({
           <p className="text-text-secondary text-xs">{timeAgo}</p>
         </div>
         {roll.is_doubles && (
-          <span className="bg-neon-gold/20 border border-neon-gold text-neon-gold text-xs px-2 py-0.5 rounded-full font-display tracking-wider">
-            DOUBLES!
+          <span className={`border text-xs px-2 py-0.5 rounded-full font-display tracking-wider ${
+            roll.is_daily_double
+              ? "bg-neon-gold/30 border-neon-gold text-neon-gold"
+              : "bg-neon-gold/20 border-neon-gold text-neon-gold"
+          }`}>
+            {roll.is_daily_double ? "DAILY DOUBLE!" : "DOUBLES!"}
           </span>
         )}
       </div>
@@ -162,18 +219,32 @@ function FeedCard({
       <div className="flex items-center gap-3 mb-3">
         <MiniDrink
           name={roll.red_drink_name}
-          logo={roll.red_drink_logo}
+          logo={redLogo}
           dieNum={roll.red_die_number}
           color="red"
         />
         <span className="text-text-secondary">+</span>
         <MiniDrink
           name={roll.white_drink_name}
-          logo={roll.white_drink_logo}
+          logo={whiteLogo}
           dieNum={roll.white_die_number}
           color="white"
         />
       </div>
+
+      {/* Achievements earned on this roll */}
+      {roll.achievements.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {roll.achievements.map((a) => (
+            <span
+              key={a.name}
+              className="inline-flex items-center gap-1 text-xs bg-neon-gold/10 border border-neon-gold/30 text-neon-gold px-2 py-0.5 rounded-full"
+            >
+              {a.emoji} {a.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Like button */}
       <div className="flex items-center gap-2 pt-2 border-t border-surface-2">
