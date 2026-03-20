@@ -22,7 +22,8 @@ interface GlobalStats {
   total_doubles: number;
   red_die_freq: Record<string, number>;
   white_die_freq: Record<string, number>;
-  top_drinks: { drink_name: string; count: number }[];
+  top_beers: { drink_name: string; count: number }[];
+  top_shots: { drink_name: string; count: number }[];
   day_of_week: { day_num: number; count: number }[];
   leaderboard: { username: string; count: number }[];
 }
@@ -106,25 +107,30 @@ export default function StatsPage() {
       : (globalStats?.white_die_freq?.[i + 1] ?? 0),
   }));
 
-  const topDrinks = (() => {
+  const truncate = (name: string) => name.length > 10 ? name.slice(0, 10) + "…" : name;
+
+  const topBeers = (() => {
     if (mode === "personal") {
       const counts: Record<string, number> = {};
-      rolls.forEach((r) => {
-        counts[r.red_drink_name] = (counts[r.red_drink_name] || 0) + 1;
-        counts[r.white_drink_name] = (counts[r.white_drink_name] || 0) + 1;
-      });
+      rolls.forEach((r) => { counts[r.red_drink_name] = (counts[r.red_drink_name] || 0) + 1; });
       return Object.entries(counts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 8)
-        .map(([name, count]) => ({
-          name: name.length > 10 ? name.slice(0, 10) + "…" : name,
-          count,
-        }));
+        .map(([name, count]) => ({ name: truncate(name), count }));
     }
-    return (globalStats?.top_drinks ?? []).map(({ drink_name, count }) => ({
-      name: drink_name.length > 10 ? drink_name.slice(0, 10) + "…" : drink_name,
-      count,
-    }));
+    return (globalStats?.top_beers ?? []).map(({ drink_name, count }) => ({ name: truncate(drink_name), count }));
+  })();
+
+  const topShots = (() => {
+    if (mode === "personal") {
+      const counts: Record<string, number> = {};
+      rolls.forEach((r) => { counts[r.white_drink_name] = (counts[r.white_drink_name] || 0) + 1; });
+      return Object.entries(counts)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8)
+        .map(([name, count]) => ({ name: truncate(name), count }));
+    }
+    return (globalStats?.top_shots ?? []).map(({ drink_name, count }) => ({ name: truncate(drink_name), count }));
   })();
 
   const dayFreq = DAYS.map((day, i) => ({
@@ -244,19 +250,39 @@ export default function StatsPage() {
                 </ResponsiveContainer>
               </ChartCard>
 
-              {topDrinks.length > 0 && (
-                <ChartCard title="🍺 Most Rolled Drinks">
+              {topBeers.length > 0 && (
+                <ChartCard title="🍺 Most Rolled Beers">
                   <ResponsiveContainer width="100%" height={160}>
-                    <BarChart data={topDrinks} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                    <BarChart data={topBeers} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
                       <XAxis type="number" tick={{ fill: "#999", fontSize: 10 }} allowDecimals={false} />
                       <YAxis type="category" dataKey="name" tick={{ fill: "#F5F5F5", fontSize: 10 }} width={80} />
                       <Tooltip
                         contentStyle={{ background: "#1A1A1A", border: "1px solid #252525", borderRadius: 8 }}
-                        itemStyle={{ color: "#FFD600" }}
+                        itemStyle={{ color: "#FF2D55" }}
                       />
                       <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                        {topDrinks.map((_, i) => (
-                          <Cell key={i} fill={NEON_COLORS[i % NEON_COLORS.length]} />
+                        {topBeers.map((_, i) => (
+                          <Cell key={i} fill="#FF2D55" opacity={0.5 + (i / (topBeers.length * 2))} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartCard>
+              )}
+
+              {topShots.length > 0 && (
+                <ChartCard title="🥃 Most Rolled Shots">
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={topShots} layout="vertical" margin={{ top: 0, right: 10, left: 10, bottom: 0 }}>
+                      <XAxis type="number" tick={{ fill: "#999", fontSize: 10 }} allowDecimals={false} />
+                      <YAxis type="category" dataKey="name" tick={{ fill: "#F5F5F5", fontSize: 10 }} width={80} />
+                      <Tooltip
+                        contentStyle={{ background: "#1A1A1A", border: "1px solid #252525", borderRadius: 8 }}
+                        itemStyle={{ color: "#F5F5F5" }}
+                      />
+                      <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                        {topShots.map((_, i) => (
+                          <Cell key={i} fill="#F5F5F5" opacity={0.35 + (i / (topShots.length * 2))} />
                         ))}
                       </Bar>
                     </BarChart>
