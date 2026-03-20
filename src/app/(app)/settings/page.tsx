@@ -8,7 +8,6 @@ import Link from "next/link";
 
 interface Profile {
   username: string;
-  is_public: boolean;
   is_admin: boolean;
   recovery_email: string | null;
 }
@@ -17,7 +16,6 @@ export default function SettingsPage() {
   const supabase = createClient();
   const router = useRouter();
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [saving, setSaving] = useState(false);
   const [recoveryEmail, setRecoveryEmail] = useState("");
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailSaved, setEmailSaved] = useState(false);
@@ -28,7 +26,7 @@ export default function SettingsPage() {
       if (!user) return;
       const { data } = await supabase
         .from("profiles")
-        .select("username, is_public, is_admin, recovery_email")
+        .select("username, is_admin, recovery_email")
         .eq("id", user.id)
         .single();
       if (data) {
@@ -38,20 +36,6 @@ export default function SettingsPage() {
     }
     load();
   }, [supabase]);
-
-  async function togglePublic() {
-    if (!profile) return;
-    setSaving(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
-        .from("profiles")
-        .update({ is_public: !profile.is_public })
-        .eq("id", user.id);
-      setProfile({ ...profile, is_public: !profile.is_public });
-    }
-    setSaving(false);
-  }
 
   async function saveRecoveryEmail() {
     setSavingEmail(true);
@@ -86,27 +70,6 @@ export default function SettingsPage() {
         <div className="bg-surface rounded-2xl p-4 border border-surface-2">
           <p className="text-text-secondary text-xs uppercase tracking-widest mb-1">Handle</p>
           <p className="text-text-primary font-semibold">@{profile.username}</p>
-        </div>
-
-        {/* Public toggle */}
-        <div className="bg-surface rounded-2xl p-4 border border-surface-2 flex items-center justify-between">
-          <div>
-            <p className="text-text-primary text-sm font-medium">Public Profile</p>
-            <p className="text-text-secondary text-xs mt-0.5">Show your rolls in the social feed</p>
-          </div>
-          <button
-            onClick={togglePublic}
-            disabled={saving}
-            className={`relative w-12 h-6 rounded-full transition-colors ${
-              profile.is_public ? "bg-neon-green" : "bg-surface-2"
-            }`}
-          >
-            <span
-              className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-transform ${
-                profile.is_public ? "translate-x-7" : "translate-x-1"
-              }`}
-            />
-          </button>
         </div>
 
         {/* Recovery email */}
