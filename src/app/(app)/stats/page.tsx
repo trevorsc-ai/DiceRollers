@@ -29,6 +29,13 @@ interface GlobalStats {
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const NEON_COLORS = ["#FF2D55", "#FFD600", "#00FF88", "#FF6B9D", "#FFF066", "#66FFB3", "#FF9966", "#AA66FF"];
+
+function drinkColor(name: string): string {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffff;
+  return NEON_COLORS[h % NEON_COLORS.length];
+}
 
 export default function StatsPage() {
   const supabase = createClient();
@@ -115,9 +122,11 @@ export default function StatsPage() {
       return Object.entries(counts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 8)
-        .map(([name, count]) => ({ name: truncate(name), count }));
+        .map(([name, count]) => ({ name: truncate(name), color: drinkColor(name), count }));
     }
-    return (globalStats?.top_beers ?? []).map(({ drink_name, count }) => ({ name: truncate(drink_name), count }));
+    return (globalStats?.top_beers ?? []).map(({ drink_name, count }) => ({
+      name: truncate(drink_name), color: drinkColor(drink_name), count,
+    }));
   })();
 
   const topShots = (() => {
@@ -127,9 +136,11 @@ export default function StatsPage() {
       return Object.entries(counts)
         .sort((a, b) => b[1] - a[1])
         .slice(0, 8)
-        .map(([name, count]) => ({ name: truncate(name), count }));
+        .map(([name, count]) => ({ name: truncate(name), color: drinkColor(name), count }));
     }
-    return (globalStats?.top_shots ?? []).map(({ drink_name, count }) => ({ name: truncate(drink_name), count }));
+    return (globalStats?.top_shots ?? []).map(({ drink_name, count }) => ({
+      name: truncate(drink_name), color: drinkColor(drink_name), count,
+    }));
   })();
 
   const dayFreq = DAYS.map((day, i) => ({
@@ -257,11 +268,11 @@ export default function StatsPage() {
                       <YAxis type="category" dataKey="name" tick={{ fill: "#F5F5F5", fontSize: 10 }} width={80} />
                       <Tooltip
                         contentStyle={{ background: "#1A1A1A", border: "1px solid #252525", borderRadius: 8 }}
-                        itemStyle={{ color: "#FF2D55" }}
+                        itemStyle={{ color: "#FFD600" }}
                       />
                       <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                        {topBeers.map((_, i) => (
-                          <Cell key={i} fill="#FF2D55" opacity={0.5 + (i / (topBeers.length * 2))} />
+                        {topBeers.map((entry, i) => (
+                          <Cell key={i} fill={entry.color} />
                         ))}
                       </Bar>
                     </BarChart>
@@ -277,11 +288,11 @@ export default function StatsPage() {
                       <YAxis type="category" dataKey="name" tick={{ fill: "#F5F5F5", fontSize: 10 }} width={80} />
                       <Tooltip
                         contentStyle={{ background: "#1A1A1A", border: "1px solid #252525", borderRadius: 8 }}
-                        itemStyle={{ color: "#F5F5F5" }}
+                        itemStyle={{ color: "#FFD600" }}
                       />
                       <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                        {topShots.map((_, i) => (
-                          <Cell key={i} fill="#F5F5F5" opacity={0.35 + (i / (topShots.length * 2))} />
+                        {topShots.map((entry, i) => (
+                          <Cell key={i} fill={entry.color} />
                         ))}
                       </Bar>
                     </BarChart>
