@@ -29,7 +29,6 @@ interface GlobalStats {
 }
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const NEON_COLORS = ["#FF2D55", "#FFD600", "#00FF88", "#FF6B9D", "#FFF066", "#66FFB3", "#FF9966", "#AA66FF"];
 
 export default function StatsPage() {
   const supabase = createClient();
