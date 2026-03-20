@@ -13,18 +13,12 @@ export default async function AppLayout({
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single();
-
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <main className="flex-1 pb-safe overflow-y-auto">
         {children}
       </main>
-      <BottomNav isAdmin={profile?.is_admin ?? false} />
+      <BottomNav />
       <MickeysPuzzleModal />
     </div>
   );

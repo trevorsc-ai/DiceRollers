@@ -12,7 +12,7 @@ const tabs = [
   { href: "/settings", label: "Profile", Icon: Settings },
 ];
 
-export default function BottomNav({ isAdmin: _isAdmin }: { isAdmin: boolean }) {
+export default function BottomNav() {
   const pathname = usePathname();
   const visibleTabs = tabs;
 
