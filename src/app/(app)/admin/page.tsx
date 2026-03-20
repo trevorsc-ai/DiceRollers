@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Shield } from "lucide-react";
+import { Shield, List } from "lucide-react";
+import Link from "next/link";
 
 interface UserRow {
   id: string;
@@ -82,6 +83,17 @@ export default function AdminPage() {
         </div>
         <p className="text-text-secondary text-xs">{users.length} registered users</p>
       </div>
+
+      <Link
+        href="/admin/menu"
+        className="flex items-center gap-3 bg-surface rounded-2xl p-4 border border-surface-2 hover:border-neon-pink/40 transition-colors mb-6"
+      >
+        <List className="w-5 h-5 text-neon-pink" />
+        <div>
+          <p className="text-text-primary font-medium">Manage Menu</p>
+          <p className="text-text-secondary text-xs">Edit drink names and logos</p>
+        </div>
+      </Link>
 
       <div className="space-y-3">
         {users.map((u) => (

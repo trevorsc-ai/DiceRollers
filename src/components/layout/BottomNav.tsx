@@ -2,20 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Dice6, List, Clock, BarChart2, Users, Settings } from "lucide-react";
+import { Dice6, Clock, BarChart2, Users, Settings } from "lucide-react";
 
 const tabs = [
   { href: "/roll",     label: "Roll",    Icon: Dice6 },
-  { href: "/menu",     label: "Menu",    Icon: List },
   { href: "/history",  label: "History", Icon: Clock },
   { href: "/stats",    label: "Stats",   Icon: BarChart2 },
   { href: "/feed",     label: "Feed",    Icon: Users },
   { href: "/settings", label: "Profile", Icon: Settings },
 ];
 
-export default function BottomNav({ isAdmin }: { isAdmin: boolean }) {
+export default function BottomNav({ isAdmin: _isAdmin }: { isAdmin: boolean }) {
   const pathname = usePathname();
-  const visibleTabs = tabs.filter((tab) => tab.href !== "/menu" || isAdmin);
+  const visibleTabs = tabs;
 
   return (
     <nav
