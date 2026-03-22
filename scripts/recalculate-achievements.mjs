@@ -154,10 +154,21 @@ function computeAchievements(rolls) {
 
   // ── CLOCKING IN ──────────────────────────────────────────────────────────
 
+  // Group hours by roll_date for Open to Close check
+  const hoursByDate = {};
   for (const r of rolls) {
     const hour = getNYHour(new Date(r.roll_time));
+    (hoursByDate[r.roll_date] ??= []).push(hour);
     if (!results["early_bird"]?.completed_at && hour === 17) markComplete("early_bird");
     if (!results["night_owl"]?.completed_at && hour >= 1 && hour <= 3) markComplete("night_owl");
+  }
+
+  // Open to Close: roll at 5–6 PM (hour 17) and 1–2 AM (hour 1) same night
+  for (const hours of Object.values(hoursByDate)) {
+    if (hours.some((h) => h === 17) && hours.some((h) => h === 1)) {
+      markComplete("open_to_close");
+      break;
+    }
   }
 
   // ── DANGER ZONE ──────────────────────────────────────────────────────────

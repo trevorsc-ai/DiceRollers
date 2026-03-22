@@ -232,6 +232,21 @@ export async function evaluateAchievements(
     await markComplete("night_owl");
   }
 
+  // Open to Close: roll between 5–6 PM and 1–2 AM in the same night
+  if (!completed.has("open_to_close")) {
+    const { data: nightRolls } = await adminSupabase
+      .from("rolls")
+      .select("roll_time")
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date);
+    const hours = (nightRolls || []).map((r) => getNYHour(new Date(r.roll_time)));
+    const hasOpener = hours.some((h) => h === 17);
+    const hasCloser = hours.some((h) => h === 1);
+    if (hasOpener && hasCloser) {
+      await markComplete("open_to_close");
+    }
+  }
+
   // ── DANGER ZONE ──────────────────────────────────────────────────────
 
   // Run It Back: 2+ rolls same night
