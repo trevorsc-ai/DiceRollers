@@ -109,6 +109,46 @@ export async function evaluateAchievements(
 
   // ── YOU'RE A REGULAR ────────────────────────────────────────────────
 
+  // Ring the Gong: first roll ever
+  if (!completed.has("ring_gong")) {
+    await markComplete("ring_gong");
+  }
+
+  // Fifty & Fabulous / Century Club: total roll milestones
+  if (!completed.has("fifty_fabulous") || !completed.has("century_club")) {
+    const { count: totalRolls } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId);
+    if (!completed.has("fifty_fabulous")) {
+      await updateCounter("fifty_fabulous", totalRolls ?? 0, 50);
+    }
+    if (!completed.has("century_club")) {
+      await updateCounter("century_club", totalRolls ?? 0, 100);
+    }
+  }
+
+  // Daily Double Devotee: take the daily double 10 times
+  if (!completed.has("daily_double_devotee")) {
+    const { count } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_daily_double", true);
+    await updateCounter("daily_double_devotee", count ?? 0, 10);
+  }
+
+  // The Contrarian: decline the daily double 10 times
+  if (!completed.has("the_contrarian")) {
+    const { count } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("is_doubles", true)
+      .eq("is_daily_double", false);
+    await updateCounter("the_contrarian", count ?? 0, 10);
+  }
+
   // Malort Advent Calendar: Roll Malort (white=6) 25 times
   if (!completed.has("malort_advent_calendar")) {
     const { count } = await adminSupabase
@@ -193,6 +233,29 @@ export async function evaluateAchievements(
     }
   }
 
+  // Snake Eyes: double 1s
+  if (!completed.has("snake_eyes") && roll.is_doubles && roll.red_die_number === 1) {
+    await markComplete("snake_eyes");
+  }
+
+  // Boxcars: double 8s
+  if (!completed.has("boxcars") && roll.is_doubles && roll.red_die_number === 8) {
+    await markComplete("boxcars");
+  }
+
+  // Hot Dice: 3+ doubles in one night
+  if (!completed.has("hot_dice")) {
+    const { count } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date)
+      .eq("is_doubles", true);
+    if ((count ?? 0) >= 3) {
+      await markComplete("hot_dice");
+    }
+  }
+
   // Deja Vu: same combo twice in one night
   if (!completed.has("deja_vu")) {
     const { data: nightRolls } = await adminSupabase
@@ -223,6 +286,20 @@ export async function evaluateAchievements(
   // ── CLOCKING IN ──────────────────────────────────────────────────────
 
   const nyHour = getNYHour(new Date(roll.roll_time));
+
+  // Day-of-week achievements — use roll_date (already bar-night adjusted)
+  const [dow_y, dow_m, dow_d] = roll.roll_date.split("-").map(Number);
+  const dow = new Date(dow_y, dow_m - 1, dow_d).getDay(); // 0=Sun…6=Sat
+
+  if (!completed.has("sunday_funday") && dow === 0) {
+    await markComplete("sunday_funday");
+  }
+  if (!completed.has("taco_tuesday") && dow === 2) {
+    await markComplete("taco_tuesday");
+  }
+  if (!completed.has("trivia_thursday") && dow === 4) {
+    await markComplete("trivia_thursday");
+  }
 
   if (!completed.has("early_bird") && nyHour === 17) {
     await markComplete("early_bird");
@@ -273,6 +350,18 @@ export async function evaluateAchievements(
     }
   }
 
+  // The Legend: 5+ rolls same night
+  if (!completed.has("the_legend")) {
+    const { count } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date);
+    if ((count ?? 0) >= 5) {
+      await markComplete("the_legend");
+    }
+  }
+
   // The Quad God: 4+ rolls same night
   if (!completed.has("the_quad_god")) {
     const { count } = await adminSupabase
@@ -298,6 +387,19 @@ export async function evaluateAchievements(
       .lte("roll_time", roll.roll_time);
     if ((count ?? 0) >= 2) {
       await markComplete("power_hour");
+    }
+  }
+
+  // Malort Three-Peat: 3+ Malort rolls in one night
+  if (!completed.has("malort_three_peat")) {
+    const { count } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date)
+      .eq("white_die_number", 6);
+    if ((count ?? 0) >= 3) {
+      await markComplete("malort_three_peat");
     }
   }
 

@@ -80,6 +80,23 @@ function computeAchievements(rolls) {
 
   // ── YOU'RE A REGULAR ──────────────────────────────────────────────────────
 
+  // Ring the Gong: first roll ever
+  if (rolls.length >= 1) markComplete("ring_gong");
+
+  // Fifty & Fabulous: 50 total rolls
+  upsert("fifty_fabulous", rolls.length, 50);
+
+  // Century Club: 100 total rolls
+  upsert("century_club", rolls.length, 100);
+
+  // Daily Double Devotee: take the daily double 10 times
+  const ddCount = rolls.filter((r) => r.is_daily_double).length;
+  upsert("daily_double_devotee", ddCount, 10);
+
+  // The Contrarian: decline the daily double 10 times
+  const contrCount = rolls.filter((r) => r.is_doubles && !r.is_daily_double).length;
+  upsert("the_contrarian", contrCount, 10);
+
   // Malort Advent Calendar: Roll Malort (white=6) 25 times
   const malortCount = rolls.filter((r) => r.white_die_number === 6).length;
   upsert("malort_advent_calendar", malortCount, 25);
@@ -131,6 +148,19 @@ function computeAchievements(rolls) {
     }
   }
 
+  // Snake Eyes: double 1s
+  if (rolls.some((r) => r.is_doubles && r.red_die_number === 1)) markComplete("snake_eyes");
+
+  // Boxcars: double 8s
+  if (rolls.some((r) => r.is_doubles && r.red_die_number === 8)) markComplete("boxcars");
+
+  // Hot Dice: 3+ doubles in one night
+  const doublesByDate = {};
+  for (const r of rolls) {
+    if (r.is_doubles) doublesByDate[r.roll_date] = (doublesByDate[r.roll_date] ?? 0) + 1;
+  }
+  if (Object.values(doublesByDate).some((c) => c >= 3)) markComplete("hot_dice");
+
   // Deja Vu: same combo twice in one night
   const rollsByDate = {};
   for (const r of rolls) {
@@ -154,13 +184,19 @@ function computeAchievements(rolls) {
 
   // ── CLOCKING IN ──────────────────────────────────────────────────────────
 
-  // Group hours by roll_date for Open to Close check
+  // Day-of-week achievements + hour tracking
   const hoursByDate = {};
   for (const r of rolls) {
     const hour = getNYHour(new Date(r.roll_time));
     (hoursByDate[r.roll_date] ??= []).push(hour);
     if (!results["early_bird"]?.completed_at && hour === 17) markComplete("early_bird");
     if (!results["night_owl"]?.completed_at && hour >= 1 && hour <= 3) markComplete("night_owl");
+
+    const [dy, dm, dd] = r.roll_date.split("-").map(Number);
+    const dow = new Date(dy, dm - 1, dd).getDay(); // 0=Sun…6=Sat
+    if (!results["sunday_funday"]?.completed_at && dow === 0) markComplete("sunday_funday");
+    if (!results["taco_tuesday"]?.completed_at && dow === 2) markComplete("taco_tuesday");
+    if (!results["trivia_thursday"]?.completed_at && dow === 4) markComplete("trivia_thursday");
   }
 
   // Open to Close: roll at 5–6 PM (hour 17) and 1–2 AM (hour 1) same night
@@ -189,6 +225,14 @@ function computeAchievements(rolls) {
     }
   }
 
+  // The Legend: 5+ rolls same night
+  for (const nightRolls of Object.values(rollsByDate)) {
+    if (nightRolls.length >= 5) {
+      markComplete("the_legend");
+      break;
+    }
+  }
+
   // The Quad God: 4+ rolls same night
   for (const nightRolls of Object.values(rollsByDate)) {
     if (nightRolls.length >= 4) {
@@ -211,6 +255,13 @@ function computeAchievements(rolls) {
       break outer_power;
     }
   }
+
+  // Malort Three-Peat: 3+ Malort rolls in one night
+  const malortByDate = {};
+  for (const r of rolls) {
+    if (r.white_die_number === 6) malortByDate[r.roll_date] = (malortByDate[r.roll_date] ?? 0) + 1;
+  }
+  if (Object.values(malortByDate).some((c) => c >= 3)) markComplete("malort_three_peat");
 
   // Slow Down: any 60-min window with 3+ rolls
   outer_slow: for (let i = 0; i < rolls.length; i++) {
