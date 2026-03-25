@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import Link from "next/link";
+import UserProfileModal from "@/components/UserProfileModal";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
 } from "recharts";
@@ -51,6 +52,9 @@ export default function StatsPage() {
   const [globalStats, setGlobalStats] = useState<GlobalStats | null>(null);
   const [globalLoading, setGlobalLoading] = useState(false);
   const [globalFetched, setGlobalFetched] = useState(false);
+
+  // Profile modal
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
   // Load personal rolls once on mount
   useEffect(() => {
@@ -235,7 +239,11 @@ export default function StatsPage() {
               <h2 className="font-display text-xl neon-text-gold tracking-widest mb-4">🏆 LEADERBOARD</h2>
               <div className="space-y-2">
                 {leaderboard.map((entry, i) => (
-                  <div key={entry.username} className="flex items-center gap-3">
+                  <button
+                    key={entry.username}
+                    className="flex items-center gap-3 w-full text-left rounded-xl px-2 py-1 -mx-2 hover:bg-surface-2 active:bg-surface-2 transition-colors"
+                    onClick={() => setSelectedUser(entry.username)}
+                  >
                     <span className={`font-display text-lg w-6 shrink-0 ${i === 0 ? "text-neon-gold" : i === 1 ? "text-text-secondary" : i === 2 ? "text-neon-pink/60" : "text-text-secondary"}`}>
                       {i + 1}
                     </span>
@@ -244,7 +252,7 @@ export default function StatsPage() {
                       <span className="text-sm leading-none">{entry.flair.join("")}</span>
                     )}
                     <span className="ml-auto text-text-secondary text-sm shrink-0">{entry.count} rolls</span>
-                  </div>
+                  </button>
                 ))}
               </div>
             </div>
@@ -354,6 +362,13 @@ export default function StatsPage() {
           )}
 
         </>
+      )}
+
+      {selectedUser && (
+        <UserProfileModal
+          username={selectedUser}
+          onClose={() => setSelectedUser(null)}
+        />
       )}
     </div>
   );
