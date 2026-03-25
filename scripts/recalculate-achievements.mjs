@@ -181,6 +181,22 @@ function computeAchievements(rolls) {
     }
   }
 
+  // Hat Trick: 3+ rolls same night
+  for (const nightRolls of Object.values(rollsByDate)) {
+    if (nightRolls.length >= 3) {
+      markComplete("hat_trick");
+      break;
+    }
+  }
+
+  // The Quad God: 4+ rolls same night
+  for (const nightRolls of Object.values(rollsByDate)) {
+    if (nightRolls.length >= 4) {
+      markComplete("the_quad_god");
+      break;
+    }
+  }
+
   // Power Hour: any 60-min window with 2+ rolls
   outer_power: for (let i = 0; i < rolls.length; i++) {
     const t = new Date(rolls[i].roll_time).getTime();

@@ -261,6 +261,30 @@ export async function evaluateAchievements(
     }
   }
 
+  // Hat Trick: 3+ rolls same night
+  if (!completed.has("hat_trick")) {
+    const { count } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date);
+    if ((count ?? 0) >= 3) {
+      await markComplete("hat_trick");
+    }
+  }
+
+  // The Quad God: 4+ rolls same night
+  if (!completed.has("the_quad_god")) {
+    const { count } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date);
+    if ((count ?? 0) >= 4) {
+      await markComplete("the_quad_god");
+    }
+  }
+
   // Power Hour: 2+ rolls within 60 minutes
   if (!completed.has("power_hour")) {
     const oneHourAgo = new Date(

@@ -15,7 +15,7 @@ VALUES
  'youre_a_regular', "You're a Regular", '💎', 16, 20),
 
 ('double_trouble', 'Double Trouble', '😈',
- 'Roll all 8 unique doubles (1-1 through 8-8)',
+ 'Roll all 8 doubles',
  'youre_a_regular', "You're a Regular", '💎', 8, 30),
 
 ('around_the_world', 'Around the World', '🌎',
@@ -71,5 +71,5 @@ VALUES
  'danger_zone', 'Danger Zone', '⚠️', NULL, 150),
 
 ('slow_down', 'Slow Down', '😵‍💫',
- 'Roll three times within 60 minutes',
+ 'Roll thrice within 60 minutes',
  'danger_zone', 'Danger Zone', '⚠️', NULL, 160);

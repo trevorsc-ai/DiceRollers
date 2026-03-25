@@ -221,7 +221,6 @@ function DoublesGrid({ numbers }: { numbers: number[] }) {
   return (
     <div className="mt-2">
       <div className="flex items-center gap-1">
-        <span className="text-neon-pink text-[10px] w-8">2x</span>
         {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
           <div
             key={n}
