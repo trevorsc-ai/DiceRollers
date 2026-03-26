@@ -85,7 +85,7 @@ export default function AchievementsPage() {
       );
 
       const rarityMap = new Map<string, number>(
-        (rarityData || []).map((r) => [r.achievement_id, Number(r.unlock_count)])
+        (rarityData || []).map((r: { achievement_id: string; unlock_count: number | string }) => [r.achievement_id, Number(r.unlock_count)])
       );
 
       const merged: AchievementWithProgress[] = allAchievements.map((a) => {
