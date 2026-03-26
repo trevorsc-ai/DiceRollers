@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import puzzles from "@/data/mickeys-puzzles.json";
+import puzzlesFallback from "@/data/mickeys-puzzles.json";
+import { createClient } from "@/lib/supabase/client";
 import { X } from "lucide-react";
 
 function getDayOfYear(date: Date): number {
@@ -25,9 +26,25 @@ export default function MickeysPuzzleModal() {
     if (localStorage.getItem(key)) return;
 
     const day = getDayOfYear(new Date());
-    const todaysPuzzle = puzzles[day % puzzles.length];
-    setPuzzle(todaysPuzzle);
-    setOpen(true);
+
+    async function loadPuzzle() {
+      const supabase = createClient();
+      const { data } = await supabase
+        .from("puzzles")
+        .select("puzzle, answer")
+        .eq("is_active", true)
+        .order("day_index");
+
+      if (data && data.length > 0) {
+        setPuzzle(data[day % data.length]);
+      } else {
+        // Fallback to local JSON if DB unavailable
+        setPuzzle(puzzlesFallback[day % puzzlesFallback.length]);
+      }
+      setOpen(true);
+    }
+
+    loadPuzzle();
   }, []);
 
   function dismiss() {
