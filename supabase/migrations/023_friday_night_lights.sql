@@ -12,7 +12,7 @@ VALUES
 INSERT INTO user_achievements (user_id, achievement_id, progress, completed_at)
 SELECT user_id, 'friday_night_lights', 1, MIN(roll_time)
 FROM rolls
-WHERE EXTRACT(DOW FROM roll_time AT TIME ZONE 'America/New_York') = 5
+WHERE EXTRACT(DOW FROM roll_date) = 5
 GROUP BY user_id
 ON CONFLICT (user_id, achievement_id) DO UPDATE
   SET progress = 1, completed_at = EXCLUDED.completed_at, updated_at = NOW();
