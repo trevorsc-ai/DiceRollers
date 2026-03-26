@@ -195,8 +195,12 @@ function computeAchievements(rolls) {
     const [dy, dm, dd] = r.roll_date.split("-").map(Number);
     const dow = new Date(dy, dm - 1, dd).getDay(); // 0=Sun…6=Sat
     if (!results["sunday_funday"]?.completed_at && dow === 0) markComplete("sunday_funday");
+    if (!results["case_of_the_mondays"]?.completed_at && dow === 1) markComplete("case_of_the_mondays");
     if (!results["taco_tuesday"]?.completed_at && dow === 2) markComplete("taco_tuesday");
+    if (!results["hump_day"]?.completed_at && dow === 3) markComplete("hump_day");
     if (!results["trivia_thursday"]?.completed_at && dow === 4) markComplete("trivia_thursday");
+    if (!results["friday_night_lights"]?.completed_at && dow === 5) markComplete("friday_night_lights");
+    if (!results["saturday_night_fever"]?.completed_at && dow === 6) markComplete("saturday_night_fever");
   }
 
   // Open to Close: roll at 5–6 PM (hour 17) and 1–2 AM (hour 1) same night

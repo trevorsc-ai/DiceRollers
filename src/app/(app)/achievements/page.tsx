@@ -36,10 +36,23 @@ const CATEGORY_ORDER = [
   "danger_zone",
 ];
 
+type FilterMode = "all" | "earned" | "unearned";
+
 export default function AchievementsPage() {
   const supabase = createClient();
   const [achievements, setAchievements] = useState<AchievementWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
+  const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
+  const [filter, setFilter] = useState<FilterMode>("all");
+
+  function toggleCategory(cat: string) {
+    setCollapsed((prev) => {
+      const next = new Set(prev);
+      if (next.has(cat)) next.delete(cat);
+      else next.add(cat);
+      return next;
+    });
+  }
 
   useEffect(() => {
     // Clear new-achievement notification dot on visit
@@ -89,9 +102,15 @@ export default function AchievementsPage() {
   const earned = achievements.filter((a) => a.completed_at !== null).length;
   const total = achievements.length;
 
+  const filteredAchievements = achievements.filter((a) => {
+    if (filter === "earned") return a.completed_at !== null;
+    if (filter === "unearned") return a.completed_at === null;
+    return true;
+  });
+
   const byCategory = CATEGORY_ORDER.map((cat) => ({
     category: cat,
-    items: achievements.filter((a) => a.category === cat),
+    items: filteredAchievements.filter((a) => a.category === cat),
   })).filter((g) => g.items.length > 0);
 
   if (loading) {
@@ -127,19 +146,57 @@ export default function AchievementsPage() {
         </div>
       </div>
 
+      {/* Filter toggle */}
+      <div className="flex gap-1 bg-surface rounded-2xl p-1 border border-surface-2">
+        {(["all", "earned", "unearned"] as FilterMode[]).map((mode) => (
+          <button
+            key={mode}
+            onClick={() => setFilter(mode)}
+            className={`flex-1 py-1.5 rounded-xl text-xs font-semibold tracking-widest uppercase transition-colors ${
+              filter === mode
+                ? "bg-neon-pink text-background"
+                : "text-text-secondary hover:text-text-primary"
+            }`}
+          >
+            {mode === "all" ? "All" : mode === "earned" ? "Earned" : "Unearned"}
+          </button>
+        ))}
+      </div>
+
       {/* Categories */}
       {byCategory.map(({ category, items }) => {
         const first = items[0];
+        const isCollapsed = collapsed.has(category);
+        const earnedInCat = items.filter((a) => a.completed_at !== null).length;
         return (
           <div key={category} className="space-y-2">
-            <h2 className="font-display text-lg tracking-widest text-text-secondary uppercase">
-              {first.category_emoji} {first.category_name}
-            </h2>
-            <div className="space-y-2">
-              {items.map((a) => (
-                <AchievementCard key={a.id} achievement={a} />
-              ))}
-            </div>
+            <button
+              onClick={() => toggleCategory(category)}
+              className="w-full flex items-center justify-between group"
+            >
+              <h2 className="font-display text-lg tracking-widest text-text-secondary uppercase">
+                {first.category_emoji} {first.category_name}
+              </h2>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-xs text-text-secondary">
+                  {earnedInCat}/{items.length}
+                </span>
+                <span
+                  className={`text-text-secondary transition-transform duration-200 ${
+                    isCollapsed ? "-rotate-90" : ""
+                  }`}
+                >
+                  ▾
+                </span>
+              </div>
+            </button>
+            {!isCollapsed && (
+              <div className="space-y-2">
+                {items.map((a) => (
+                  <AchievementCard key={a.id} achievement={a} />
+                ))}
+              </div>
+            )}
           </div>
         );
       })}
