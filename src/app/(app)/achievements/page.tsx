@@ -41,6 +41,7 @@ type FilterMode = "all" | "earned" | "unearned";
 export default function AchievementsPage() {
   const supabase = createClient();
   const [achievements, setAchievements] = useState<AchievementWithProgress[]>([]);
+  const [rarityMap, setRarityMap] = useState<Map<string, number>>(new Map());
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<FilterMode>("all");
@@ -68,18 +69,23 @@ export default function AchievementsPage() {
       } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [{ data: allAchievements }, { data: userProgress }] = await Promise.all([
+      const [{ data: allAchievements }, { data: userProgress }, { data: rarityData }] = await Promise.all([
         supabase.from("achievements").select("*").order("sort_order"),
         supabase
           .from("user_achievements")
           .select("achievement_id, progress, progress_detail, completed_at")
           .eq("user_id", user.id),
+        supabase.rpc("get_achievement_rarity"),
       ]);
 
       if (!allAchievements) return;
 
       const progressMap = new Map<string, UserAchievement>(
         (userProgress || []).map((ua) => [ua.achievement_id, ua])
+      );
+
+      const rarityMap = new Map<string, number>(
+        (rarityData || []).map((r) => [r.achievement_id, Number(r.unlock_count)])
       );
 
       const merged: AchievementWithProgress[] = allAchievements.map((a) => {
@@ -93,6 +99,7 @@ export default function AchievementsPage() {
       });
 
       setAchievements(merged);
+      setRarityMap(rarityMap);
       setLoading(false);
     }
 
@@ -110,7 +117,13 @@ export default function AchievementsPage() {
 
   const byCategory = CATEGORY_ORDER.map((cat) => ({
     category: cat,
-    items: filteredAchievements.filter((a) => a.category === cat),
+    items: filteredAchievements
+      .filter((a) => a.category === cat)
+      .sort((a, b) => {
+        const ra = rarityMap.get(a.id) ?? 0;
+        const rb = rarityMap.get(b.id) ?? 0;
+        return ra !== rb ? ra - rb : a.sort_order - b.sort_order;
+      }),
   })).filter((g) => g.items.length > 0);
 
   if (loading) {

@@ -206,6 +206,10 @@ export type Database = {
           leaderboard: { username: string; count: number; flair: string[] }[];
         };
       };
+      get_achievement_rarity: {
+        Args: Record<string, never>;
+        Returns: { achievement_id: string; unlock_count: number; total_users: number }[];
+      };
     };
     Enums: Record<string, never>;
   };
