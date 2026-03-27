@@ -19,7 +19,7 @@ export default async function AppLayout({
         {children}
       </main>
       <BottomNav />
-      <MickeysPuzzleModal />
+      {/* <MickeysPuzzleModal /> */}
     </div>
   );
 }
