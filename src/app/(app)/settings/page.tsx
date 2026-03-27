@@ -20,6 +20,13 @@ export default function SettingsPage() {
   const [savingEmail, setSavingEmail] = useState(false);
   const [emailSaved, setEmailSaved] = useState(false);
 
+  const [newHandle, setNewHandle] = useState("");
+  const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
+  const [checkingHandle, setCheckingHandle] = useState(false);
+  const [savingHandle, setSavingHandle] = useState(false);
+  const [handleSaved, setHandleSaved] = useState(false);
+  const [handleError, setHandleError] = useState<string | null>(null);
+
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser();
@@ -31,11 +38,71 @@ export default function SettingsPage() {
         .single();
       if (data) {
         setProfile(data);
+        setNewHandle(data.username);
         setRecoveryEmail(data.recovery_email ?? "");
       }
     }
     load();
   }, [supabase]);
+
+  // Debounced handle availability check
+  useEffect(() => {
+    if (!profile || newHandle === profile.username) {
+      setHandleAvailable(null);
+      return;
+    }
+    if (newHandle.length < 3) {
+      setHandleAvailable(null);
+      return;
+    }
+    setCheckingHandle(true);
+    const timer = setTimeout(async () => {
+      const res = await fetch(`/api/check-handle?handle=${encodeURIComponent(newHandle)}`);
+      const data = await res.json();
+      setHandleAvailable(data.available);
+      setCheckingHandle(false);
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [newHandle, profile]);
+
+  async function saveHandle() {
+    if (!profile) return;
+    setSavingHandle(true);
+    setHandleError(null);
+    const normalized = newHandle.toLowerCase().trim();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) { setSavingHandle(false); return; }
+
+    // Update profile username
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({ username: normalized })
+      .eq("id", user.id);
+
+    if (profileError) {
+      setHandleError("Failed to update handle. Try again.");
+      setSavingHandle(false);
+      return;
+    }
+
+    // Update auth email to match new synthetic email
+    const { error: authError } = await supabase.auth.updateUser({
+      email: `${normalized}@dicerollers.local`,
+    });
+
+    if (authError) {
+      // Roll back profile change
+      await supabase.from("profiles").update({ username: profile.username }).eq("id", user.id);
+      setHandleError("Failed to update handle. Try again.");
+      setSavingHandle(false);
+      return;
+    }
+
+    setProfile({ ...profile, username: normalized });
+    setHandleSaved(true);
+    setTimeout(() => setHandleSaved(false), 2000);
+    setSavingHandle(false);
+  }
 
   async function saveRecoveryEmail() {
     setSavingEmail(true);
@@ -59,6 +126,10 @@ export default function SettingsPage() {
 
   if (!profile) return null;
 
+  const handleChanged = newHandle !== profile.username;
+  const handleValid = newHandle.length >= 3 && newHandle.length <= 20;
+  const canSaveHandle = handleChanged && handleValid && handleAvailable === true && !checkingHandle;
+
   return (
     <div className="min-h-screen bg-background px-4 py-6">
       <div className="text-center mb-6">
@@ -66,10 +137,49 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-4 max-w-sm mx-auto">
-        {/* Profile */}
+        {/* Handle */}
         <div className="bg-surface rounded-2xl p-4 border border-surface-2">
-          <p className="text-text-secondary text-xs uppercase tracking-widest mb-1">Handle</p>
-          <p className="text-text-primary font-semibold">@{profile.username}</p>
+          <p className="text-text-primary text-sm font-medium mb-0.5">Handle</p>
+          <p className="text-text-secondary text-xs mb-3">
+            Changing your handle will update how you appear to others.
+          </p>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <input
+                type="text"
+                value={newHandle}
+                onChange={(e) => { setNewHandle(e.target.value); setHandleError(null); }}
+                minLength={3}
+                maxLength={20}
+                placeholder="your_handle"
+                className="w-full bg-surface-2 border border-surface-2 rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
+              />
+              {handleChanged && handleValid && (
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs">
+                  {checkingHandle ? (
+                    <span className="text-text-secondary">...</span>
+                  ) : handleAvailable === true ? (
+                    <span className="text-neon-green">✓</span>
+                  ) : handleAvailable === false ? (
+                    <span className="text-neon-pink">✗</span>
+                  ) : null}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={saveHandle}
+              disabled={!canSaveHandle || savingHandle}
+              className="px-3 py-2 bg-neon-pink text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
+            >
+              {handleSaved ? "Saved!" : savingHandle ? "..." : "Save"}
+            </button>
+          </div>
+          {handleChanged && handleAvailable === false && !checkingHandle && (
+            <p className="text-neon-pink text-xs mt-1">Handle already taken</p>
+          )}
+          {handleError && (
+            <p className="text-neon-pink text-xs mt-1">{handleError}</p>
+          )}
         </div>
 
         {/* Recovery email */}
