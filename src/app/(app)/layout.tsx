@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/layout/BottomNav";
-import MickeysPuzzleModal from "@/components/MickeysPuzzleModal";
 
 export default async function AppLayout({
   children,
