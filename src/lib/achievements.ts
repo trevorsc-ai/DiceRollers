@@ -192,20 +192,30 @@ export async function evaluateAchievements(
     if (progress >= 16) {
       const newTimesCompleted = timesCompleted + 1;
       const now = new Date().toISOString();
-      await adminSupabase.from("user_achievements").upsert(
-        {
+      await Promise.all([
+        // Update the main achievement row (resets for next cycle)
+        adminSupabase.from("user_achievements").upsert(
+          {
+            user_id: userId,
+            achievement_id: "the_punch_card",
+            progress: 0,
+            progress_detail: null,
+            times_completed: newTimesCompleted,
+            cycle_started_at: now,
+            completed_at: null,
+            earned_on_roll_id: rollId,
+            updated_at: now,
+          },
+          { onConflict: "user_id,achievement_id" }
+        ),
+        // Record this completion in history so the feed can show every earn
+        adminSupabase.from("punch_card_completions").insert({
           user_id: userId,
-          achievement_id: "the_punch_card",
-          progress: 0,
-          progress_detail: null,
-          times_completed: newTimesCompleted,
-          cycle_started_at: now,
-          completed_at: null,
           earned_on_roll_id: rollId,
-          updated_at: now,
-        },
-        { onConflict: "user_id,achievement_id" }
-      );
+          completion_number: newTimesCompleted,
+          earned_at: now,
+        }),
+      ]);
       const info = await fetchAchievementInfo("the_punch_card");
       if (info) {
         newlyCompleted.push({

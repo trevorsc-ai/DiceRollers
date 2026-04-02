@@ -70,11 +70,23 @@ export default function FeedPage() {
       if (rollData) {
         // Fetch achievements earned on these rolls
         const rollIds = rollData.map((r: { id: number }) => r.id);
-        const { data: achievementData } = await supabase
-          .from("user_achievements")
-          .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
-          .in("earned_on_roll_id", rollIds)
-          .not("completed_at", "is", null);
+        const [{ data: achievementData }, { data: punchCardData }] = await Promise.all([
+          supabase
+            .from("user_achievements")
+            .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
+            .in("earned_on_roll_id", rollIds)
+            .not("completed_at", "is", null),
+          // Punch Card completions are stored separately (completed_at is always null)
+          supabase
+            .from("punch_card_completions")
+            .select("earned_on_roll_id, completion_number")
+            .in("earned_on_roll_id", rollIds),
+        ]);
+
+        const PUNCH_CARD_KEYCAP: Record<number, string> = {
+          2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
+          6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣", 10: "🔟",
+        };
 
         // Build a map of roll_id → achievements
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -89,6 +101,19 @@ export default function FeedPage() {
             emoji: a.emoji,
             category_emoji: a.category_emoji,
             category_name: a.category_name,
+          });
+        }
+        // Merge Punch Card completions
+        for (const pc of punchCardData ?? []) {
+          if (!pc.earned_on_roll_id) continue;
+          const n = pc.completion_number;
+          const emoji = n <= 1 ? "🎟️" : (PUNCH_CARD_KEYCAP[n] ?? `${n}`) + "🎟️";
+          if (!achievementsByRoll[pc.earned_on_roll_id]) achievementsByRoll[pc.earned_on_roll_id] = [];
+          achievementsByRoll[pc.earned_on_roll_id].push({
+            name: "The Punch Card",
+            emoji,
+            category_emoji: "💎",
+            category_name: "You're a Regular",
           });
         }
 
