@@ -294,11 +294,23 @@ export async function evaluateAchievements(
   if (!completed.has("sunday_funday") && dow === 0) {
     await markComplete("sunday_funday");
   }
+  if (!completed.has("case_of_the_mondays") && dow === 1) {
+    await markComplete("case_of_the_mondays");
+  }
   if (!completed.has("taco_tuesday") && dow === 2) {
     await markComplete("taco_tuesday");
   }
+  if (!completed.has("hump_day") && dow === 3) {
+    await markComplete("hump_day");
+  }
   if (!completed.has("trivia_thursday") && dow === 4) {
     await markComplete("trivia_thursday");
+  }
+  if (!completed.has("friday_night_lights") && dow === 5) {
+    await markComplete("friday_night_lights");
+  }
+  if (!completed.has("saturday_night_fever") && dow === 6) {
+    await markComplete("saturday_night_fever");
   }
 
   if (!completed.has("early_bird") && nyHour === 17) {
