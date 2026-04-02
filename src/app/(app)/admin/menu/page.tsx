@@ -184,7 +184,7 @@ export default function MenuPage() {
                       {(editingId === item.id ? editLogoPreview : item.logo_url) ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
-                          src={(editingId === item.id ? editLogoPreview : item.logo_url)!}
+                          src={(editingId === item.id ? editLogoPreview : item.logo_url) ?? ""}
                           alt={item.drink_name}
                           className="w-full h-full object-contain"
                         />
@@ -293,7 +293,7 @@ function MenuColumn({
                   {(isEditing ? editLogoPreview : item.logo_url) ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={(isEditing ? editLogoPreview : item.logo_url)!}
+                      src={(isEditing ? editLogoPreview : item.logo_url) ?? ""}
                       alt={item.drink_name}
                       className="w-full h-full object-contain"
                     />

@@ -214,13 +214,13 @@ export default function RollPage() {
           </p>
           <div className="flex items-center justify-around">
             {displayRedDrink && (
-              <DrinkCard drink={displayRedDrink} dieColor="red" dieNum={redDie!} />
+              <DrinkCard drink={displayRedDrink} dieColor="red" dieNum={redDie ?? 0} />
             )}
             {displayRedDrink && displayWhiteDrink && (
               <div className="text-text-secondary text-2xl">+</div>
             )}
             {displayWhiteDrink && (
-              <DrinkCard drink={displayWhiteDrink} dieColor="white" dieNum={whiteDie!} />
+              <DrinkCard drink={displayWhiteDrink} dieColor="white" dieNum={whiteDie ?? 0} />
             )}
           </div>
 
