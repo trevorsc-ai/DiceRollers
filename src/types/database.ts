@@ -8,6 +8,7 @@ export type Database = {
           is_admin: boolean;
           is_public: boolean;
           recovery_email: string | null;
+          oath_accepted_at: string | null;
           created_at: string;
         };
         Insert: {
@@ -16,6 +17,7 @@ export type Database = {
           is_admin?: boolean;
           is_public?: boolean;
           recovery_email?: string | null;
+          oath_accepted_at?: string | null;
           created_at?: string;
         };
         Update: {
@@ -24,6 +26,7 @@ export type Database = {
           is_admin?: boolean;
           is_public?: boolean;
           recovery_email?: string | null;
+          oath_accepted_at?: string | null;
           created_at?: string;
         };
       };

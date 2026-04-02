@@ -12,6 +12,15 @@ export default async function AppLayout({
 
   if (!user) redirect("/login");
 
+  // Check if user has accepted the Dice Roll Oath
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("oath_accepted_at")
+    .eq("id", user.id)
+    .single();
+
+  if (!profile?.oath_accepted_at) redirect("/oath");
+
   return (
     <div className="flex flex-col min-h-screen bg-background">
       <main className="flex-1 pb-safe overflow-y-auto">
