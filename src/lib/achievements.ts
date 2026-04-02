@@ -28,6 +28,7 @@ const SPECIAL_COMBOS: Array<{ id: string; redDrink: string; whiteDrink: string }
   { id: "the_freshman", redDrink: "Whiteclaw", whiteDrink: "Espolon" },
   { id: "chicago_charcuterie", redDrink: "High Life", whiteDrink: "Malort" },
   { id: "the_regular", redDrink: "Mickeys", whiteDrink: "Malort" },
+  { id: "hot_bitch", redDrink: "Raging Bitch", whiteDrink: "Hot Hooch" },
 ];
 
 /**
