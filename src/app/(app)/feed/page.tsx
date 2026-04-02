@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import UserProfileModal from "@/components/UserProfileModal";
 
 interface EarnedAchievement {
   name: string;
@@ -34,6 +35,7 @@ export default function FeedPage() {
   const [loading, setLoading] = useState(true);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [dailyDoubleLogo, setDailyDoubleLogo] = useState<{ beer: string | null; shot: string | null }>({ beer: null, shot: null });
+  const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
@@ -166,21 +168,27 @@ export default function FeedPage() {
               myUserId={myUserId}
               onToggleLike={toggleLike}
               dailyDoubleLogo={dailyDoubleLogo}
+              onUserClick={setSelectedUser}
             />
           ))}
         </div>
+      )}
+
+      {selectedUser && (
+        <UserProfileModal username={selectedUser} onClose={() => setSelectedUser(null)} />
       )}
     </div>
   );
 }
 
 function FeedCard({
-  roll, onToggleLike, dailyDoubleLogo,
+  roll, onToggleLike, dailyDoubleLogo, onUserClick,
 }: {
   roll: FeedRoll;
   myUserId: string | null;
   onToggleLike: (id: number, likedByMe: boolean) => void;
   dailyDoubleLogo: { beer: string | null; shot: string | null };
+  onUserClick: (username: string) => void;
 }) {
   const [bouncing, setBouncing] = useState(false);
 
@@ -201,7 +209,12 @@ function FeedCard({
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
         <div>
-          <span className="text-text-primary text-sm font-semibold">{roll.username}</span>
+          <button
+            onClick={() => onUserClick(roll.username)}
+            className="text-text-primary text-sm font-semibold hover:text-neon-pink transition-colors"
+          >
+            {roll.username}
+          </button>
           <p className="text-text-secondary text-xs">{timeAgo}</p>
         </div>
         {roll.is_doubles && (
