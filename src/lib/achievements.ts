@@ -225,7 +225,9 @@ export async function evaluateAchievements(
             white: Array.from(whiteHit).sort((a, b) => a - b),
           },
           times_completed: timesCompleted,
-          cycle_started_at: cycleStartedAt ?? now,
+          // Keep cycle_started_at null during the first cycle so all rolls count.
+          // It only gets set when a cycle completes and resets.
+          cycle_started_at: cycleStartedAt,
           completed_at: null,
           updated_at: now,
         },
