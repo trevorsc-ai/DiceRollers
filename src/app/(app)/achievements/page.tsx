@@ -20,13 +20,20 @@ interface UserAchievement {
   progress: number;
   progress_detail: { red?: number[]; white?: number[]; numbers?: number[]; combos?: string[] } | null;
   completed_at: string | null;
+  times_completed?: number;
 }
 
 interface AchievementWithProgress extends Achievement {
   progress: number;
   progress_detail: { red?: number[]; white?: number[]; numbers?: number[]; combos?: string[] } | null;
   completed_at: string | null;
+  times_completed: number;
 }
+
+const PUNCH_CARD_KEYCAP: Record<number, string> = {
+  2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
+  6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣", 10: "🔟",
+};
 
 const CATEGORY_ORDER = [
   "youre_a_regular",
@@ -73,7 +80,7 @@ export default function AchievementsPage() {
         supabase.from("achievements").select("*").order("sort_order"),
         supabase
           .from("user_achievements")
-          .select("achievement_id, progress, progress_detail, completed_at")
+          .select("achievement_id, progress, progress_detail, completed_at, times_completed")
           .eq("user_id", user.id),
         supabase.rpc("get_achievement_rarity"),
       ]);
@@ -90,11 +97,17 @@ export default function AchievementsPage() {
 
       const merged: AchievementWithProgress[] = allAchievements.map((a) => {
         const ua = progressMap.get(a.id);
+        const timesCompleted = ua?.times_completed ?? 0;
         return {
           ...a,
           progress: ua?.progress ?? 0,
           progress_detail: ua?.progress_detail ?? null,
           completed_at: ua?.completed_at ?? null,
+          times_completed: timesCompleted,
+          // Override emoji for repeated Punch Card completions
+          emoji: a.id === "the_punch_card" && timesCompleted >= 2
+            ? `${PUNCH_CARD_KEYCAP[timesCompleted] ?? timesCompleted}🎟️`
+            : a.emoji,
         };
       });
 
@@ -106,12 +119,17 @@ export default function AchievementsPage() {
     load();
   }, [supabase]);
 
-  const earned = achievements.filter((a) => a.completed_at !== null).length;
+  function isAchievementEarned(a: AchievementWithProgress): boolean {
+    if (a.id === "the_punch_card") return a.times_completed > 0;
+    return a.completed_at !== null;
+  }
+
+  const earned = achievements.filter(isAchievementEarned).length;
   const total = achievements.length;
 
   const filteredAchievements = achievements.filter((a) => {
-    if (filter === "earned") return a.completed_at !== null;
-    if (filter === "unearned") return a.completed_at === null;
+    if (filter === "earned") return isAchievementEarned(a);
+    if (filter === "unearned") return !isAchievementEarned(a);
     return true;
   });
 
@@ -180,7 +198,7 @@ export default function AchievementsPage() {
       {byCategory.map(({ category, items }) => {
         const first = items[0];
         const isCollapsed = collapsed.has(category);
-        const earnedInCat = items.filter((a) => a.completed_at !== null).length;
+        const earnedInCat = items.filter(isAchievementEarned).length;
         return (
           <div key={category} className="space-y-2">
             <button
@@ -218,7 +236,7 @@ export default function AchievementsPage() {
 }
 
 function AchievementCard({ achievement: a }: { achievement: AchievementWithProgress }) {
-  const isEarned = a.completed_at !== null;
+  const isEarned = a.id === "the_punch_card" ? a.times_completed > 0 : a.completed_at !== null;
 
   return (
     <div
@@ -242,16 +260,20 @@ function AchievementCard({ achievement: a }: { achievement: AchievementWithProgr
               {a.name}
             </p>
             {isEarned && (
-              <span className="text-neon-green text-xs shrink-0">✓ Earned</span>
+              <span className="text-neon-green text-xs shrink-0">
+                {a.id === "the_punch_card" && a.times_completed > 1
+                  ? `✓ ×${a.times_completed}`
+                  : "✓ Earned"}
+              </span>
             )}
           </div>
           <p className="text-text-secondary text-xs mt-0.5">{a.description}</p>
 
           {/* Progress indicators */}
-          {a.target_count !== null && !isEarned && (
+          {a.target_count !== null && (a.id === "the_punch_card" ? true : !isEarned) && (
             <div className="mt-2">
               <div className="flex justify-between text-xs text-text-secondary mb-1">
-                <span>Progress</span>
+                <span>{a.id === "the_punch_card" && isEarned ? `Next punch card` : "Progress"}</span>
                 <span>{a.progress}/{a.target_count}</span>
               </div>
               <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
@@ -266,8 +288,8 @@ function AchievementCard({ achievement: a }: { achievement: AchievementWithProgr
           )}
 
           {/* Punch Card grid */}
-          {a.id === "the_punch_card" && a.progress_detail && (
-            <PunchCardGrid detail={a.progress_detail} />
+          {a.id === "the_punch_card" && (a.progress_detail || isEarned) && (
+            <PunchCardGrid detail={a.progress_detail ?? {}} />
           )}
 
           {/* Double Trouble tracker */}

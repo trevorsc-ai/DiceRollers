@@ -31,6 +31,15 @@ const SPECIAL_COMBOS: Array<{ id: string; redDrink: string; whiteDrink: string }
   { id: "hot_bitch", redDrink: "Raging Bitch", whiteDrink: "Hot Hooch" },
 ];
 
+const KEYCAP_DIGITS = ["0️⃣","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣"];
+
+function punchCardEmoji(timesCompleted: number): string {
+  if (timesCompleted <= 1) return "🎟️";
+  if (timesCompleted === 10) return "🔟🎟️";
+  if (timesCompleted < 10) return `${KEYCAP_DIGITS[timesCompleted]}🎟️`;
+  return `${timesCompleted}🎟️`;
+}
+
 /**
  * Evaluates all achievements after a roll is saved.
  * Uses the service-role client (bypasses RLS) for writes.
@@ -45,7 +54,7 @@ export async function evaluateAchievements(
   // Fetch current achievement state for this user
   const { data: existing } = await adminSupabase
     .from("user_achievements")
-    .select("achievement_id, progress, progress_detail, completed_at")
+    .select("achievement_id, progress, progress_detail, completed_at, times_completed, cycle_started_at")
     .eq("user_id", userId);
 
   const completed = new Set(
@@ -160,20 +169,69 @@ export async function evaluateAchievements(
     await updateCounter("malort_advent_calendar", count ?? 0, 25);
   }
 
-  // The Punch Card: Roll each 1–8 on BOTH dice
-  if (!completed.has("the_punch_card")) {
-    const { data: punchRolls } = await adminSupabase
+  // The Punch Card: Roll each 1–8 on BOTH dice (repeatable)
+  {
+    const punchRow = (existing || []).find((ua) => ua.achievement_id === "the_punch_card");
+    const timesCompleted: number = punchRow?.times_completed ?? 0;
+    const cycleStartedAt: string | null = punchRow?.cycle_started_at ?? null;
+
+    // Query only rolls from the current cycle (after last completion reset)
+    let punchQuery = adminSupabase
       .from("rolls")
       .select("red_die_number, white_die_number")
       .eq("user_id", userId);
+    if (cycleStartedAt) {
+      punchQuery = punchQuery.gt("roll_time", cycleStartedAt);
+    }
+    const { data: punchRolls } = await punchQuery;
+
     const redHit = new Set((punchRolls || []).map((r) => r.red_die_number));
     const whiteHit = new Set((punchRolls || []).map((r) => r.white_die_number));
-    await updateCounter(
-      "the_punch_card",
-      redHit.size + whiteHit.size,
-      16,
-      { red: Array.from(redHit).sort((a, b) => a - b), white: Array.from(whiteHit).sort((a, b) => a - b) }
-    );
+    const progress = redHit.size + whiteHit.size;
+
+    if (progress >= 16) {
+      const newTimesCompleted = timesCompleted + 1;
+      const now = new Date().toISOString();
+      await adminSupabase.from("user_achievements").upsert(
+        {
+          user_id: userId,
+          achievement_id: "the_punch_card",
+          progress: 0,
+          progress_detail: null,
+          times_completed: newTimesCompleted,
+          cycle_started_at: now,
+          completed_at: null,
+          earned_on_roll_id: rollId,
+          updated_at: now,
+        },
+        { onConflict: "user_id,achievement_id" }
+      );
+      const info = await fetchAchievementInfo("the_punch_card");
+      if (info) {
+        newlyCompleted.push({
+          ...info,
+          emoji: punchCardEmoji(newTimesCompleted),
+        });
+      }
+    } else {
+      const now = new Date().toISOString();
+      await adminSupabase.from("user_achievements").upsert(
+        {
+          user_id: userId,
+          achievement_id: "the_punch_card",
+          progress,
+          progress_detail: {
+            red: Array.from(redHit).sort((a, b) => a - b),
+            white: Array.from(whiteHit).sort((a, b) => a - b),
+          },
+          times_completed: timesCompleted,
+          cycle_started_at: cycleStartedAt ?? now,
+          completed_at: null,
+          updated_at: now,
+        },
+        { onConflict: "user_id,achievement_id" }
+      );
+    }
   }
 
   // Double Trouble: All 8 unique doubles
