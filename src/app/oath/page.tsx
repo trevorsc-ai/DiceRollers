@@ -55,7 +55,7 @@ export default function OathPage() {
 
           <div>
             <h2 className="font-display text-lg text-neon-pink tracking-wider mb-1">
-              THE SECOND RULE OF Rolling Dice
+              THE SECOND RULE OF ROLLING DICE
             </h2>
             <p className="text-text-primary text-sm leading-relaxed">
               You <span className="font-bold">DO NOT</span> log fake rolls. Ever.
