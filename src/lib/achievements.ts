@@ -486,7 +486,7 @@ export async function evaluateAchievements(
     }
   }
 
-  // Malort Three-Peat: 3+ Malort rolls in one night
+  // Malort Again!: 2+ Malort rolls in one night
   if (!completed.has("malort_three_peat")) {
     const { count } = await adminSupabase
       .from("rolls")
@@ -494,7 +494,7 @@ export async function evaluateAchievements(
       .eq("user_id", userId)
       .eq("roll_date", roll.roll_date)
       .eq("white_die_number", 6);
-    if ((count ?? 0) >= 3) {
+    if ((count ?? 0) >= 2) {
       await markComplete("malort_three_peat");
     }
   }

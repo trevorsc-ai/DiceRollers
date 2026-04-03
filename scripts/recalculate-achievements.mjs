@@ -260,12 +260,12 @@ function computeAchievements(rolls) {
     }
   }
 
-  // Malort Three-Peat: 3+ Malort rolls in one night
+  // Malort Again!: 2+ Malort rolls in one night
   const malortByDate = {};
   for (const r of rolls) {
     if (r.white_die_number === 6) malortByDate[r.roll_date] = (malortByDate[r.roll_date] ?? 0) + 1;
   }
-  if (Object.values(malortByDate).some((c) => c >= 3)) markComplete("malort_three_peat");
+  if (Object.values(malortByDate).some((c) => c >= 2)) markComplete("malort_three_peat");
 
   // Slow Down: any 60-min window with 3+ rolls
   outer_slow: for (let i = 0; i < rolls.length; i++) {
