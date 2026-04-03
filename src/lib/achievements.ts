@@ -473,6 +473,19 @@ export async function evaluateAchievements(
     }
   }
 
+  // Dragon's Breath: Hot Hooch twice in one night
+  if (!completed.has("dragons_breath") && roll.white_drink_name === "Hot Hooch") {
+    const { count } = await adminSupabase
+      .from("rolls")
+      .select("*", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date)
+      .eq("white_drink_name", "Hot Hooch");
+    if ((count ?? 0) >= 2) {
+      await markComplete("dragons_breath");
+    }
+  }
+
   // Malort Three-Peat: 3+ Malort rolls in one night
   if (!completed.has("malort_three_peat")) {
     const { count } = await adminSupabase
