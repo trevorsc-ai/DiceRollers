@@ -46,7 +46,7 @@ export default function OathPage() {
         <div className="space-y-5">
           <div>
             <h2 className="font-display text-lg text-neon-pink tracking-wider mb-1">
-              THE FIRST RULE OF DICE ROLL CLUB
+              THE FIRST RULE OF ROLLING DICE
             </h2>
             <p className="text-text-primary text-sm leading-relaxed">
               You do not log fake rolls. Ever.
@@ -55,7 +55,7 @@ export default function OathPage() {
 
           <div>
             <h2 className="font-display text-lg text-neon-pink tracking-wider mb-1">
-              THE SECOND RULE OF DICE ROLL CLUB
+              THE SECOND RULE OF Rolling Dice
             </h2>
             <p className="text-text-primary text-sm leading-relaxed">
               You <span className="font-bold">DO NOT</span> log fake rolls. Ever.
@@ -89,7 +89,7 @@ export default function OathPage() {
             <p className="text-text-primary text-sm leading-relaxed">
               The leaderboard is sacred. The achievements are earned. The stats are real.
               Falsifying a roll is a crime against the community, the dice, and frankly,
-              yourself. The dice gods will know. We will judge you.
+              yourself. The dice gods will know. They will judge you.
             </p>
           </div>
         </div>
