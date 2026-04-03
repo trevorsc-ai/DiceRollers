@@ -24,6 +24,7 @@ interface Roll {
   is_doubles: boolean;
   is_daily_double: boolean;
   achievements: EarnedAchievement[];
+  rollNumber: number;
 }
 
 export default function HistoryPage() {
@@ -81,7 +82,8 @@ export default function HistoryPage() {
           });
         }
 
-        setRolls(data.map((r: Roll) => ({ ...r, achievements: achievementsByRoll[r.id] ?? [] })));
+        const total = data.length;
+        setRolls(data.map((r: Roll, i: number) => ({ ...r, achievements: achievementsByRoll[r.id] ?? [], rollNumber: total - i })));
       }
       setLoading(false);
     }
@@ -157,7 +159,7 @@ export default function HistoryPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map((roll) => (
-            <RollCard key={roll.id} roll={roll} dailyDoubleLogo={dailyDoubleLogo} />
+            <RollCard key={roll.id} roll={roll} dailyDoubleLogo={dailyDoubleLogo} rollNumber={roll.rollNumber} />
           ))}
         </div>
       )}
@@ -165,7 +167,7 @@ export default function HistoryPage() {
   );
 }
 
-function RollCard({ roll, dailyDoubleLogo }: { roll: Roll; dailyDoubleLogo: { beer: string | null; shot: string | null } }) {
+function RollCard({ roll, dailyDoubleLogo, rollNumber }: { roll: Roll; dailyDoubleLogo: { beer: string | null; shot: string | null }; rollNumber: number }) {
   const date = new Date(roll.roll_time);
   const dateStr = date.toLocaleDateString("en-US", {
     month: "short", day: "numeric", year: "numeric",
@@ -184,7 +186,10 @@ function RollCard({ roll, dailyDoubleLogo }: { roll: Roll; dailyDoubleLogo: { be
     }`}>
       <div className="flex items-center justify-between mb-3">
         <div>
-          <p className="text-text-primary text-sm font-medium">{dateStr}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-text-primary text-sm font-medium">{dateStr}</p>
+            <p className="text-text-secondary text-xs">Roll #{rollNumber}</p>
+          </div>
           <p className="text-text-secondary text-xs">{timeStr}</p>
         </div>
         {roll.is_doubles && (
