@@ -1,6 +1,41 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { getNYHour } from "./dateUtils";
 
+/** Parse a roll_date string ("YYYY-MM-DD") into components. */
+function getNYDate(rollDate: string): { year: number; month: number; day: number; dow: number } {
+  const [y, m, d] = rollDate.split("-").map(Number);
+  const dow = new Date(y, m - 1, d).getDay(); // 0=Sun…6=Sat
+  return { year: y, month: m, day: d, dow };
+}
+
+/** Compute Easter Sunday for a given year using the Anonymous Gregorian algorithm. */
+function getEasterDate(year: number): { month: number; day: number } {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return { month, day };
+}
+
+/** Compute the date of Thanksgiving (4th Thursday of November) for a given year. */
+function getThanksgivingDate(year: number): { month: number; day: number } {
+  // Find first Thursday of November
+  const firstDay = new Date(year, 10, 1).getDay(); // 0=Sun
+  const firstThursday = firstDay <= 4 ? 5 - firstDay : 12 - firstDay;
+  const day = firstThursday + 21; // + 3 weeks = 4th Thursday
+  return { month: 11, day };
+}
+
 export interface AchievementInfo {
   id: string;
   name: string;
@@ -512,6 +547,65 @@ export async function evaluateAchievements(
       .lte("roll_time", roll.roll_time);
     if ((count ?? 0) >= 3) {
       await markComplete("slow_down");
+    }
+  }
+
+  // ── HOLIDAYS ─────────────────────────────────────────────────────────
+
+  {
+    const { year, month, day, dow } = getNYDate(roll.roll_date);
+
+    // Fixed-date holidays
+    if (!completed.has("new_years_day") && month === 1 && day === 1) {
+      await markComplete("new_years_day");
+    }
+    if (!completed.has("valentines_day") && month === 2 && day === 14) {
+      await markComplete("valentines_day");
+    }
+    if (!completed.has("leap_day") && month === 2 && day === 29) {
+      await markComplete("leap_day");
+    }
+    if (!completed.has("pi_day") && month === 3 && day === 14) {
+      await markComplete("pi_day");
+    }
+    if (!completed.has("st_patricks_day") && month === 3 && day === 17) {
+      await markComplete("st_patricks_day");
+    }
+    if (!completed.has("april_fools") && month === 4 && day === 1) {
+      await markComplete("april_fools");
+    }
+    if (!completed.has("independence_day") && month === 7 && day === 4) {
+      await markComplete("independence_day");
+    }
+    if (!completed.has("halloween") && month === 10 && day === 31) {
+      await markComplete("halloween");
+    }
+    if (!completed.has("christmas") && month === 12 && day === 25) {
+      await markComplete("christmas");
+    }
+    if (!completed.has("new_years_eve") && month === 12 && day === 31) {
+      await markComplete("new_years_eve");
+    }
+
+    // Friday the 13th
+    if (!completed.has("friday_13th") && day === 13 && dow === 5) {
+      await markComplete("friday_13th");
+    }
+
+    // Easter (variable)
+    if (!completed.has("easter")) {
+      const easter = getEasterDate(year);
+      if (month === easter.month && day === easter.day) {
+        await markComplete("easter");
+      }
+    }
+
+    // Thanksgiving (variable)
+    if (!completed.has("thanksgiving")) {
+      const tday = getThanksgivingDate(year);
+      if (month === tday.month && day === tday.day) {
+        await markComplete("thanksgiving");
+      }
     }
   }
 

@@ -13,6 +13,7 @@ interface Achievement {
   category_emoji: string;
   target_count: number | null;
   sort_order: number;
+  hidden: boolean;
 }
 
 interface UserAchievement {
@@ -41,6 +42,7 @@ const CATEGORY_ORDER = [
   "special_combos",
   "clocking_in",
   "danger_zone",
+  "holiday",
 ];
 
 type FilterMode = "all" | "earned" | "unearned";
@@ -124,10 +126,14 @@ export default function AchievementsPage() {
     return a.completed_at !== null;
   }
 
-  const earned = achievements.filter(isAchievementEarned).length;
-  const total = achievements.length;
+  // Only count visible achievements: non-hidden ones + hidden ones the user has earned
+  const visibleAchievements = achievements.filter((a) => !a.hidden || isAchievementEarned(a));
+  const earned = visibleAchievements.filter(isAchievementEarned).length;
+  const total = visibleAchievements.length;
 
   const filteredAchievements = achievements.filter((a) => {
+    // Never show hidden unearned achievements
+    if (a.hidden && !isAchievementEarned(a)) return false;
     if (filter === "earned") return isAchievementEarned(a);
     if (filter === "unearned") return !isAchievementEarned(a);
     return true;
@@ -256,9 +262,16 @@ function AchievementCard({ achievement: a }: { achievement: AchievementWithProgr
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <p className={`font-semibold text-sm ${isEarned ? "text-text-primary" : "text-text-secondary"}`}>
-              {a.name}
-            </p>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <p className={`font-semibold text-sm ${isEarned ? "text-text-primary" : "text-text-secondary"}`}>
+                {a.name}
+              </p>
+              {a.hidden && isEarned && (
+                <span className="text-[9px] font-bold tracking-widest text-neon-gold border border-neon-gold/50 rounded px-1 py-0.5 leading-none shrink-0">
+                  SECRET
+                </span>
+              )}
+            </div>
             {isEarned && (
               <span className="text-neon-green text-xs shrink-0">
                 {a.id === "the_punch_card" && a.times_completed > 1
