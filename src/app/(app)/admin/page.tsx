@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { Shield, List, Puzzle } from "lucide-react";
+import { Shield, List, Puzzle, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
 interface UserRow {
@@ -85,6 +85,16 @@ export default function AdminPage() {
       </div>
 
       <div className="space-y-3 mb-6">
+        <Link
+          href="/admin/users"
+          className="flex items-center gap-3 bg-surface rounded-2xl p-4 border border-surface-2 hover:border-neon-green/40 transition-colors"
+        >
+          <TrendingUp className="w-5 h-5 text-neon-green" />
+          <div>
+            <p className="text-text-primary font-medium">User Dashboard</p>
+            <p className="text-text-secondary text-xs">Active users, signups, and growth stats</p>
+          </div>
+        </Link>
         <Link
           href="/admin/menu"
           className="flex items-center gap-3 bg-surface rounded-2xl p-4 border border-surface-2 hover:border-neon-pink/40 transition-colors"
