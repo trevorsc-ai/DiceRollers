@@ -224,6 +224,13 @@ function FeedCard({
   }
 
   const timeAgo = formatTimeAgo(roll.roll_time);
+  const timestamp = new Date(roll.roll_time).toLocaleString("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 
   // For daily doubles, show the daily double drink logos (Old Time Lager + Tullamore Dew)
   const redLogo = roll.is_daily_double ? dailyDoubleLogo.beer : roll.red_drink_logo;
@@ -240,7 +247,7 @@ function FeedCard({
           >
             {roll.username}
           </button>
-          <p className="text-text-secondary text-xs">{timeAgo}</p>
+          <p className="text-text-secondary text-xs">{timeAgo} · {timestamp}</p>
         </div>
         {roll.is_doubles && (
           <span className={`border text-xs px-2 py-0.5 rounded-full font-display tracking-wider ${
