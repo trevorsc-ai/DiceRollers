@@ -8,22 +8,23 @@
 -- - Strip is_public from handle_new_user trigger
 -- ============================================================
 
--- Drop the column
-ALTER TABLE public.profiles DROP COLUMN IF EXISTS is_public;
-
 -- ─── RLS: profiles ───────────────────────────────────────────
+-- Drop old policy first (it references is_public, blocking the column drop)
 DROP POLICY IF EXISTS "profiles_select" ON public.profiles;
 CREATE POLICY "profiles_select" ON public.profiles
   FOR SELECT TO authenticated USING (true);
 
 -- ─── RLS: rolls ──────────────────────────────────────────────
--- All authenticated users can now read all rolls (everyone is public)
+-- Drop old policy first (it joins profiles.is_public, blocking the column drop)
 DROP POLICY IF EXISTS "rolls_select" ON public.rolls;
 CREATE POLICY "rolls_select" ON public.rolls
   FOR SELECT TO authenticated USING (true);
 
 -- rolls_admin_select is now redundant (rolls_select covers all), drop it
 DROP POLICY IF EXISTS "rolls_admin_select" ON public.rolls;
+
+-- Drop the column (policies referencing it have been replaced above)
+ALTER TABLE public.profiles DROP COLUMN IF EXISTS is_public;
 
 -- ─── Trigger: handle_new_user ────────────────────────────────
 CREATE OR REPLACE FUNCTION public.handle_new_user()
