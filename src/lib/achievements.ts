@@ -574,6 +574,9 @@ export async function evaluateAchievements(
     if (!completed.has("april_fools") && month === 4 && day === 1) {
       await markComplete("april_fools");
     }
+    if (!completed.has("cinco_de_mayo") && month === 5 && day === 5) {
+      await markComplete("cinco_de_mayo");
+    }
     if (!completed.has("independence_day") && month === 7 && day === 4) {
       await markComplete("independence_day");
     }
