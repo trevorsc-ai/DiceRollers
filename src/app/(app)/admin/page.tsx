@@ -9,7 +9,6 @@ interface UserRow {
   id: string;
   username: string;
   is_admin: boolean;
-  is_public: boolean;
   created_at: string;
 }
 
@@ -39,7 +38,7 @@ export default function AdminPage() {
 
       const { data } = await supabase
         .from("profiles")
-        .select("id, username, is_admin, is_public, created_at")
+        .select("id, username, is_admin, created_at")
         .order("created_at");
 
       if (data) setUsers(data);
@@ -125,7 +124,6 @@ export default function AdminPage() {
                 <p className="text-text-primary font-medium">{u.username}</p>
                 <p className="text-text-secondary text-xs mt-0.5">
                   Joined {new Date(u.created_at).toLocaleDateString()}
-                  {u.is_public ? " · Public" : " · Private"}
                 </p>
               </div>
               <div className="flex items-center gap-3">

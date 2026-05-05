@@ -7,7 +7,7 @@ import DiePicker from "@/components/DiePicker";
 import DoublesConfetti from "@/components/DoublesConfetti";
 import MalortCelebration from "@/components/MalortCelebration";
 import AchievementModal from "@/components/AchievementModal";
-import { CheckCircle, Users, Settings } from "lucide-react";
+import { CheckCircle, Settings } from "lucide-react";
 import type { AchievementInfo } from "@/lib/achievements";
 
 interface MenuItem {
@@ -31,9 +31,6 @@ export default function RollPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-  const [isPublic, setIsPublic] = useState(false);
-  const [goingPublic, setGoingPublic] = useState(false);
-  const [madePublic, setMadePublic] = useState(false);
 
   // Daily Double
   const [dailyDoubleChoice, setDailyDoubleChoice] = useState<boolean | null>(null);
@@ -85,12 +82,6 @@ export default function RollPage() {
       } = await supabase.auth.getUser();
       if (user) {
         setUserId(user.id);
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_public")
-          .eq("id", user.id)
-          .single();
-        setIsPublic(profile?.is_public ?? false);
       }
 
       const { data } = await supabase
@@ -148,20 +139,10 @@ export default function RollPage() {
     }
   }
 
-  async function handleMakePublic() {
-    if (!userId) return;
-    setGoingPublic(true);
-    await supabase.from("profiles").update({ is_public: true }).eq("id", userId);
-    setIsPublic(true);
-    setMadePublic(true);
-    setGoingPublic(false);
-  }
-
   function handleReset() {
     setRedDie(null);
     setWhiteDie(null);
     setSaved(false);
-    setMadePublic(false);
     setDailyDoubleChoice(null);
     setNewAchievements([]);
   }
@@ -290,35 +271,8 @@ export default function RollPage() {
         <div className="space-y-3 animate-scale-in">
           <div className="flex items-center justify-center gap-2 text-neon-green">
             <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">
-              {isPublic ? "Roll saved & shared to feed!" : "Roll saved!"}
-            </span>
+            <span className="font-medium">Roll saved & shared to feed!</span>
           </div>
-
-          {!isPublic && !madePublic && (
-            <div className="bg-surface border border-neon-pink/30 rounded-2xl p-4 text-center space-y-3">
-              <Users className="w-6 h-6 text-neon-pink mx-auto" />
-              <div>
-                <p className="text-text-primary text-sm font-medium">Join the community</p>
-                <p className="text-text-secondary text-xs mt-1">
-                  Make your profile public so your rolls show up in the feed
-                </p>
-              </div>
-              <button
-                onClick={handleMakePublic}
-                disabled={goingPublic}
-                className="w-full bg-neon-pink text-white font-display text-lg tracking-widest py-2.5 rounded-xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-              >
-                {goingPublic ? "JOINING..." : "GO PUBLIC"}
-              </button>
-            </div>
-          )}
-
-          {madePublic && (
-            <p className="text-center text-neon-green text-sm">
-              You&apos;re now public — welcome to the feed!
-            </p>
-          )}
 
           <button
             onClick={handleReset}

@@ -70,35 +70,26 @@ export default function SettingsPage() {
     setSavingHandle(true);
     setHandleError(null);
     const normalized = newHandle.toLowerCase().trim();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) { setSavingHandle(false); return; }
 
-    // Update profile username
-    const { error: profileError } = await supabase
-      .from("profiles")
-      .update({ username: normalized })
-      .eq("id", user.id);
-
-    if (profileError) {
-      setHandleError("Failed to update handle. Try again.");
-      setSavingHandle(false);
-      return;
-    }
-
-    // Update auth email to match new synthetic email
-    const { error: authError } = await supabase.auth.updateUser({
-      email: `${normalized}@dicerollers.local`,
+    const res = await fetch("/api/update-handle", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ handle: normalized }),
     });
 
-    if (authError) {
-      // Roll back profile change
-      await supabase.from("profiles").update({ username: profile.username }).eq("id", user.id);
-      setHandleError("Failed to update handle. Try again.");
+    if (!res.ok) {
+      const data = await res.json();
+      setHandleError(
+        data.error === "handle-taken"
+          ? "Handle already taken."
+          : "Failed to update handle. Try again."
+      );
       setSavingHandle(false);
       return;
     }
 
     setProfile({ ...profile, username: normalized });
+    setNewHandle(normalized);
     setHandleSaved(true);
     setTimeout(() => setHandleSaved(false), 2000);
     setSavingHandle(false);

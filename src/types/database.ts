@@ -6,7 +6,6 @@ export type Database = {
           id: string;
           username: string;
           is_admin: boolean;
-          is_public: boolean;
           recovery_email: string | null;
           oath_accepted_at: string | null;
           created_at: string;
@@ -15,7 +14,6 @@ export type Database = {
           id: string;
           username: string;
           is_admin?: boolean;
-          is_public?: boolean;
           recovery_email?: string | null;
           oath_accepted_at?: string | null;
           created_at?: string;
@@ -24,7 +22,6 @@ export type Database = {
           id?: string;
           username?: string;
           is_admin?: boolean;
-          is_public?: boolean;
           recovery_email?: string | null;
           oath_accepted_at?: string | null;
           created_at?: string;

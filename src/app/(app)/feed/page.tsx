@@ -60,10 +60,9 @@ export default function FeedPage() {
           id, roll_time, red_die_number, white_die_number,
           red_drink_name, white_drink_name, red_drink_logo, white_drink_logo,
           is_doubles, is_daily_double, user_id,
-          profiles!inner(username, is_public),
+          profiles!inner(username),
           roll_likes(user_id)
         `)
-        .filter("profiles.is_public", "eq", true)
         .order("roll_time", { ascending: false })
         .limit(50);
 

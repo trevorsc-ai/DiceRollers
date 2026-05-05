@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerClient } from "@supabase/ssr";
-import { cookies } from "next/headers";
+import { createClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase/server";
+
+// Service role bypasses RLS — sees all profiles regardless of auth state
+function createAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
+}
 
 export async function GET(request: NextRequest) {
   const handle = request.nextUrl.searchParams.get("handle");
@@ -14,23 +22,28 @@ export async function GET(request: NextRequest) {
 
   const normalizedHandle = handle.toLowerCase().trim();
 
-  const cookieStore = await cookies();
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() { return cookieStore.getAll(); },
-        setAll() {},
-      },
-    }
-  );
+  // Determine the calling user's ID so we can exclude their own handle
+  // (relevant when a logged-in user re-checks their current handle)
+  let currentUserId: string | null = null;
+  try {
+    const serverClient = await createServerClient();
+    const { data: { user } } = await serverClient.auth.getUser();
+    currentUserId = user?.id ?? null;
+  } catch {
+    // unauthenticated (signup flow) — no exclusion needed
+  }
 
-  const { data } = await supabase
+  const adminSupabase = createAdminClient();
+  let query = adminSupabase
     .from("profiles")
-    .select("username")
-    .ilike("username", normalizedHandle)
-    .maybeSingle();
+    .select("id")
+    .ilike("username", normalizedHandle);
+
+  if (currentUserId) {
+    query = query.neq("id", currentUserId);
+  }
+
+  const { data } = await query.maybeSingle();
 
   return NextResponse.json({ available: data === null });
 }
