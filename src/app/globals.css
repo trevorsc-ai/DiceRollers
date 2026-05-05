@@ -10,27 +10,72 @@
 body {
   background-color: #0D0D0D;
   color: #F5F5F5;
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-body, system-ui, sans-serif);
   min-height: 100dvh;
 }
 
-/* Neon text glow effect */
+/* ── Neon keyframes (text-shadow + box-shadow based, defined here for Tailwind) ── */
+@keyframes neon-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    text-shadow: 0 0 10px #FF2D55, 0 0 22px #FF2D55, 0 0 42px rgba(255, 45, 85, 0.38);
+    opacity: 1;
+  }
+  20%, 24%, 55% {
+    text-shadow: none;
+    opacity: 0.7;
+  }
+}
+
+@keyframes glow-pulse-pink {
+  0%, 100% { box-shadow: 0 0 8px #FF2D55, 0 0 18px rgba(255, 45, 85, 0.31); }
+  50%       { box-shadow: 0 0 22px #FF2D55, 0 0 40px rgba(255, 45, 85, 0.44), 0 0 60px rgba(255, 45, 85, 0.13); }
+}
+
+@keyframes glow-pulse-white {
+  0%, 100% { box-shadow: 0 0 6px rgba(255, 255, 255, 0.19), 0 0 14px rgba(255, 255, 255, 0.13); }
+  50%       { box-shadow: 0 0 18px rgba(255, 255, 255, 0.31), 0 0 32px rgba(255, 255, 255, 0.15); }
+}
+
+@keyframes flip-in {
+  0%   { transform: perspective(500px) rotateX(25deg) translateY(-6px); opacity: 0; }
+  100% { transform: perspective(500px) rotateX(0deg) translateY(0); opacity: 1; }
+}
+
+@keyframes btn-pop {
+  0%   { transform: scale(1); }
+  40%  { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+
+@keyframes grow-bar {
+  0%   { transform: scaleY(0); }
+  100% { transform: scaleY(1); }
+}
+
+/* ── Neon text glow utilities ── */
 .neon-text-pink {
   color: #FF2D55;
-  text-shadow: 0 0 10px #FF2D55, 0 0 20px #FF2D55, 0 0 40px #FF2D55;
+  text-shadow: 0 0 10px #FF2D55, 0 0 22px #FF2D55, 0 0 42px rgba(255, 45, 85, 0.38);
 }
 
 .neon-text-gold {
   color: #FFD600;
-  text-shadow: 0 0 10px #FFD600, 0 0 20px #FFD600, 0 0 40px #FFD600;
+  text-shadow: 0 0 10px rgba(255, 214, 0, 0.5), 0 0 22px rgba(255, 214, 0, 0.25);
 }
 
 .neon-text-green {
   color: #00FF88;
-  text-shadow: 0 0 10px #00FF88, 0 0 20px #00FF88, 0 0 40px #00FF88;
+  text-shadow: 0 0 10px rgba(0, 255, 136, 0.5), 0 0 22px rgba(0, 255, 136, 0.25);
 }
 
-/* Neon border glow */
+/* Neon page title with flicker */
+.neon-title {
+  color: #FF2D55;
+  text-shadow: 0 0 10px #FF2D55, 0 0 22px #FF2D55, 0 0 42px rgba(255, 45, 85, 0.38);
+  animation: neon-flicker 9s ease-in-out infinite;
+}
+
+/* ── Neon border glow ── */
 .neon-border-pink {
   border-color: #FF2D55;
   box-shadow: 0 0 8px #FF2D55, inset 0 0 8px rgba(255, 45, 85, 0.1);
@@ -46,7 +91,24 @@ body {
   box-shadow: 0 0 8px #00FF88, inset 0 0 8px rgba(0, 255, 136, 0.1);
 }
 
-/* Scrollbar styling */
+/* ── Scanline overlay ── */
+.scanlines {
+  position: relative;
+}
+.scanlines::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent, transparent 2px,
+    rgba(0, 0, 0, 0.07) 2px, rgba(0, 0, 0, 0.07) 4px
+  );
+  pointer-events: none;
+  z-index: 5;
+}
+
+/* ── Scrollbar ── */
 ::-webkit-scrollbar {
   width: 4px;
 }

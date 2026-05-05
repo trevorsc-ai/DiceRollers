@@ -6,10 +6,10 @@ import { Dice6, BarChart2, Trophy, Users } from "lucide-react";
 import { useEffect, useState } from "react";
 
 const tabs = [
-  { href: "/roll",         label: "Roll",         Icon: Dice6 },
-  { href: "/stats",        label: "Stats",        Icon: BarChart2 },
-  { href: "/achievements", label: "Achievements", Icon: Trophy },
-  { href: "/feed",         label: "Feed",         Icon: Users },
+  { href: "/roll",         label: "ROLL",         Icon: Dice6 },
+  { href: "/stats",        label: "STATS",        Icon: BarChart2 },
+  { href: "/achievements", label: "ACHIEVEMENTS", Icon: Trophy },
+  { href: "/feed",         label: "FEED",         Icon: Users },
 ];
 
 export default function BottomNav() {
@@ -27,10 +27,7 @@ export default function BottomNav() {
     }
 
     checkDot();
-
-    // Re-check when storage changes (e.g. after achievement earned)
     window.addEventListener("storage", checkDot);
-    // Also poll on visibility change so the dot clears when returning from achievements
     document.addEventListener("visibilitychange", checkDot);
 
     return () => {
@@ -39,7 +36,6 @@ export default function BottomNav() {
     };
   }, []);
 
-  // Clear dot when on achievements page
   useEffect(() => {
     if (pathname === "/achievements") {
       setHasNewAchievements(false);
@@ -61,9 +57,7 @@ export default function BottomNav() {
               key={href}
               href={href}
               className={`relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors ${
-                active
-                  ? "text-neon-pink"
-                  : "text-text-secondary hover:text-text-primary"
+                active ? "text-neon-pink" : "text-text-secondary hover:text-text-primary"
               }`}
             >
               <div className="relative">
@@ -72,8 +66,8 @@ export default function BottomNav() {
                   <span className="absolute -top-1 -right-1 w-2 h-2 bg-neon-pink rounded-full" />
                 )}
               </div>
-              <span className={`text-[9px] tracking-wider ${active ? "font-semibold" : ""}`}>
-                {label.toUpperCase()}
+              <span className={`font-display text-[9px] tracking-wider ${active ? "font-semibold" : ""}`}>
+                {label}
               </span>
               {active && (
                 <span className="absolute bottom-0 left-1/2 -translate-x-1/2 w-6 h-0.5 bg-neon-pink rounded-full" />

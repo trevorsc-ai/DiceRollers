@@ -42,7 +42,6 @@ export default function HistoryPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch daily double logos from menu
       const { data: ddItems } = await supabase
         .from("menu_items")
         .select("die_number, logo_url")
@@ -75,15 +74,17 @@ export default function HistoryPage() {
           if (!a || !ua.earned_on_roll_id) continue;
           if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
           achievementsByRoll[ua.earned_on_roll_id].push({
-            name: a.name,
-            emoji: a.emoji,
-            category_emoji: a.category_emoji,
-            category_name: a.category_name,
+            name: a.name, emoji: a.emoji,
+            category_emoji: a.category_emoji, category_name: a.category_name,
           });
         }
 
         const total = data.length;
-        setRolls(data.map((r: Roll, i: number) => ({ ...r, achievements: achievementsByRoll[r.id] ?? [], rollNumber: total - i })));
+        setRolls(data.map((r: Roll, i: number) => ({
+          ...r,
+          achievements: achievementsByRoll[r.id] ?? [],
+          rollNumber: total - i,
+        })));
       }
       setLoading(false);
     }
@@ -102,125 +103,146 @@ export default function HistoryPage() {
   });
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6">
-      <div className="text-center mb-6">
-        <h1 className="font-display text-4xl neon-text-pink tracking-widest">HISTORY</h1>
-        <p className="text-text-secondary text-xs mt-1">{rolls.length} total rolls</p>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0">
+        <div className="w-8" />
+        <div className="text-center">
+          <h1 className="neon-title font-display text-[38px] tracking-[0.32em] leading-none">HISTORY</h1>
+          <p className="font-display text-[11px] tracking-[0.14em] text-text-muted mt-1">
+            {rolls.length} TOTAL ROLLS
+          </p>
+        </div>
+        <div className="w-8" />
       </div>
 
-      {/* Filters */}
-      <div className="space-y-3 mb-6">
+      <div className="px-[18px] pb-[84px] flex flex-col gap-2.5">
+        {/* Search */}
         <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-text-secondary" />
+          <Search
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-text-secondary"
+            style={{ width: 15, height: 15 }}
+            strokeWidth={1.5}
+          />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search drinks..."
-            className="w-full bg-surface border border-surface-2 rounded-xl pl-10 pr-4 py-2.5 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors text-sm"
+            className="w-full bg-surface border border-surface-2 rounded-[10px] pl-9 pr-3 py-2.5 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors text-[13px]"
           />
         </div>
 
+        {/* Filter row */}
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => setDoublesOnly(!doublesOnly)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-colors ${
+            className="flex items-center gap-1.5 px-[11px] py-[7px] rounded-lg border font-display text-[10px] tracking-[0.16em] font-bold transition-all"
+            style={
               doublesOnly
-                ? "bg-neon-gold/20 border-neon-gold text-neon-gold"
-                : "border-surface-2 text-text-secondary hover:text-text-primary"
-            }`}
+                ? {
+                    background: "rgba(255,214,0,0.20)",
+                    borderColor: "#FFD600",
+                    color: "#FFD600",
+                    boxShadow: "0 0 8px rgba(255,214,0,0.25)",
+                  }
+                : { background: "transparent", borderColor: "#252525", color: "#555" }
+            }
           >
-            <Filter className="w-3 h-3" />
-            Doubles Only
+            <Filter style={{ width: 11, height: 11 }} strokeWidth={2} />
+            DOUBLES ONLY
           </button>
           <input
             type="date"
             value={dateFrom}
             onChange={(e) => setDateFrom(e.target.value)}
-            className="bg-surface border border-surface-2 rounded-lg px-2 py-1.5 text-text-secondary text-xs focus:outline-none focus:border-neon-pink [color-scheme:dark]"
+            className="bg-surface border border-surface-2 rounded-lg px-2.5 py-[7px] text-text-secondary font-display text-[10px] focus:outline-none focus:border-neon-pink [color-scheme:dark] tracking-[0.10em]"
           />
           <input
             type="date"
             value={dateTo}
             onChange={(e) => setDateTo(e.target.value)}
-            className="bg-surface border border-surface-2 rounded-lg px-2 py-1.5 text-text-secondary text-xs focus:outline-none focus:border-neon-pink [color-scheme:dark]"
+            className="bg-surface border border-surface-2 rounded-lg px-2.5 py-[7px] text-text-secondary font-display text-[10px] focus:outline-none focus:border-neon-pink [color-scheme:dark] tracking-[0.10em]"
           />
         </div>
-      </div>
 
-      {/* Roll list */}
-      {loading ? (
-        <div className="text-center text-text-secondary py-12">Loading...</div>
-      ) : filtered.length === 0 ? (
-        <div className="text-center text-text-secondary py-12">
-          <p className="text-4xl mb-3">🎲</p>
-          <p>No rolls yet. Get rolling!</p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {filtered.map((roll) => (
-            <RollCard key={roll.id} roll={roll} dailyDoubleLogo={dailyDoubleLogo} rollNumber={roll.rollNumber} />
-          ))}
-        </div>
-      )}
+        {/* Roll list */}
+        {loading ? (
+          <div className="text-center text-text-secondary py-12">Loading...</div>
+        ) : filtered.length === 0 ? (
+          <div className="text-center text-text-secondary py-12">
+            <p className="text-4xl mb-3">🎲</p>
+            <p>No rolls yet. Get rolling!</p>
+          </div>
+        ) : (
+          filtered.map((roll) => (
+            <RollCard key={roll.id} roll={roll} dailyDoubleLogo={dailyDoubleLogo} />
+          ))
+        )}
+      </div>
     </div>
   );
 }
 
-function RollCard({ roll, dailyDoubleLogo, rollNumber }: { roll: Roll; dailyDoubleLogo: { beer: string | null; shot: string | null }; rollNumber: number }) {
+function RollCard({ roll, dailyDoubleLogo }: { roll: Roll; dailyDoubleLogo: { beer: string | null; shot: string | null } }) {
   const date = new Date(roll.roll_time);
-  const dateStr = date.toLocaleDateString("en-US", {
-    month: "short", day: "numeric", year: "numeric",
-  });
-  const timeStr = date.toLocaleTimeString("en-US", {
-    hour: "numeric", minute: "2-digit", hour12: true,
-  });
+  const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
 
-  // For daily doubles, show the daily double drink logos (Old Time Lager + Tullamore Dew)
   const redLogo = roll.is_daily_double ? dailyDoubleLogo.beer : roll.red_drink_logo;
   const whiteLogo = roll.is_daily_double ? dailyDoubleLogo.shot : roll.white_drink_logo;
 
   return (
-    <div className={`bg-surface rounded-2xl p-4 border transition-colors ${
-      roll.is_doubles ? "border-neon-gold/40" : "border-surface-2"
-    }`}>
-      <div className="flex items-center justify-between mb-3">
+    <div
+      className="bg-surface rounded-[14px] p-[12px_14px] border"
+      style={{
+        borderColor: roll.is_doubles ? "rgba(255,214,0,0.55)" : "#252525",
+        boxShadow: roll.is_doubles ? "0 0 12px rgba(255,214,0,0.12)" : "none",
+      }}
+    >
+      {/* Date row */}
+      <div className="flex items-start justify-between mb-2.5">
         <div>
-          <div className="flex items-center gap-2">
-            <p className="text-text-primary text-sm font-medium">{dateStr}</p>
-            <p className="text-text-secondary text-xs">Roll #{rollNumber}</p>
+          <div className="flex items-baseline gap-2">
+            <span className="text-text-primary text-[12px] font-medium">{dateStr}</span>
+            <span className="font-display text-[10px] text-text-muted tracking-[0.10em]">#{roll.rollNumber}</span>
           </div>
-          <p className="text-text-secondary text-xs">{timeStr}</p>
+          <p className="font-display text-[10px] text-text-muted mt-0.5">{timeStr}</p>
         </div>
         {roll.is_doubles && (
-          <span className="bg-neon-gold/20 border border-neon-gold text-neon-gold text-xs px-2 py-0.5 rounded-full font-display tracking-wider">
+          <span
+            className="font-display text-[9px] font-bold tracking-[0.18em] px-2 py-1 rounded-full border shrink-0"
+            style={{
+              color: "#FFD600",
+              textShadow: "0 0 8px rgba(255,214,0,0.5)",
+              borderColor: "#FFD600",
+              background: roll.is_daily_double ? "rgba(255,214,0,0.25)" : "rgba(255,214,0,0.15)",
+            }}
+          >
             {roll.is_daily_double ? "DAILY DOUBLE!" : "DOUBLES!"}
           </span>
         )}
       </div>
 
-      <div className="flex items-center gap-3">
-        <DrinkItem
-          name={roll.red_drink_name}
-          logo={redLogo}
-          dieNum={roll.red_die_number}
-          color="red"
-        />
-        <span className="text-text-secondary text-lg">+</span>
-        <DrinkItem
-          name={roll.white_drink_name}
-          logo={whiteLogo}
-          dieNum={roll.white_die_number}
-          color="white"
-        />
+      {/* Drink row */}
+      <div className="flex items-center gap-2.5">
+        <DrinkItem name={roll.red_drink_name} logo={redLogo} dieNum={roll.red_die_number} color="red" />
+        <span className="text-text-muted text-sm shrink-0">+</span>
+        <DrinkItem name={roll.white_drink_name} logo={whiteLogo} dieNum={roll.white_die_number} color="white" />
       </div>
 
+      {/* Achievement pills */}
       {roll.achievements.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mt-3">
+        <div className="flex flex-wrap gap-1.5 mt-2.5">
           {roll.achievements.map((a) => (
             <span
               key={a.name}
-              className="inline-flex items-center gap-1 text-xs bg-neon-gold/10 border border-neon-gold/30 text-neon-gold px-2 py-0.5 rounded-full"
+              className="inline-flex items-center gap-1 font-display text-[10px] tracking-[0.08em] px-2 py-1 rounded-full border"
+              style={{
+                color: "#FFD600",
+                borderColor: "rgba(255,214,0,0.4)",
+                background: "rgba(255,214,0,0.10)",
+              }}
             >
               {a.emoji} {a.name}
             </span>
@@ -232,30 +254,36 @@ function RollCard({ roll, dailyDoubleLogo, rollNumber }: { roll: Roll; dailyDoub
 }
 
 function DrinkItem({ name, logo, dieNum, color }: {
-  name: string;
-  logo: string | null;
-  dieNum: number;
-  color: "red" | "white";
+  name: string; logo: string | null; dieNum: number; color: "red" | "white";
 }) {
   const isRed = color === "red";
   return (
-    <div className="flex items-center gap-2 flex-1">
-      <div className={`w-8 h-8 rounded-lg shrink-0 flex items-center justify-center ${
-        isRed ? "bg-neon-pink/10 border border-neon-pink/30" : "bg-surface-2 border border-surface-2"
-      }`}>
+    <div className="flex items-center gap-2 flex-1 min-w-0">
+      <div
+        className="w-[34px] h-[34px] rounded-lg shrink-0 flex items-center justify-center"
+        style={{
+          background: isRed ? "#FF2D5512" : "#F5F5F508",
+          border: `1px solid ${isRed ? "rgba(255,45,85,0.32)" : "#252525"}`,
+          fontFamily: "var(--font-display, monospace)",
+          fontSize: 14,
+          fontWeight: 700,
+          color: isRed ? "#FF2D55" : "#F5F5F5",
+        }}
+      >
         {logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={logo} alt={name} className="w-6 h-6 object-contain" />
+          <img src={logo} alt={name} className="w-5 h-5 object-contain" />
         ) : (
-          <span className={`font-display text-sm ${isRed ? "text-neon-pink" : "text-text-primary"}`}>
-            {dieNum}
-          </span>
+          dieNum
         )}
       </div>
-      <div>
-        <p className="text-text-primary text-xs font-medium leading-tight">{name}</p>
-        <p className={`text-xs ${isRed ? "text-neon-pink/70" : "text-text-secondary"}`}>
-          {isRed ? `🔴 ${dieNum}` : `⚪ ${dieNum}`}
+      <div className="min-w-0">
+        <p className="text-text-primary text-[12px] font-medium leading-snug truncate">{name}</p>
+        <p
+          className="font-display text-[9px] tracking-[0.12em] mt-0.5"
+          style={{ color: isRed ? "rgba(255,45,85,0.75)" : "#555" }}
+        >
+          {isRed ? "BEER" : "SHOT"}
         </p>
       </div>
     </div>

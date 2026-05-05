@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import UserProfileModal from "@/components/UserProfileModal";
+import { Dice6 } from "lucide-react";
 
 interface EarnedAchievement {
   name: string;
@@ -42,7 +43,6 @@ export default function FeedPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) setMyUserId(user.id);
 
-      // Fetch daily double logos from menu
       const { data: ddItems } = await supabase
         .from("menu_items")
         .select("die_number, logo_url")
@@ -53,7 +53,6 @@ export default function FeedPage() {
         setDailyDoubleLogo({ beer, shot });
       }
 
-      // Fetch public rolls joined with profiles
       const { data: rollData } = await supabase
         .from("rolls")
         .select(`
@@ -67,7 +66,6 @@ export default function FeedPage() {
         .limit(50);
 
       if (rollData) {
-        // Fetch achievements earned on these rolls
         const rollIds = rollData.map((r: { id: number }) => r.id);
         const [{ data: achievementData }, { data: punchCardData }] = await Promise.all([
           supabase
@@ -75,7 +73,6 @@ export default function FeedPage() {
             .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
             .in("earned_on_roll_id", rollIds)
             .not("completed_at", "is", null),
-          // Punch Card completions are stored separately (completed_at is always null)
           supabase
             .from("punch_card_completions")
             .select("earned_on_roll_id, completion_number")
@@ -87,7 +84,6 @@ export default function FeedPage() {
           6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣", 10: "🔟",
         };
 
-        // Build a map of roll_id → achievements
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
         for (const ua of achievementData ?? []) {
@@ -96,23 +92,18 @@ export default function FeedPage() {
           if (!a || !ua.earned_on_roll_id) continue;
           if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
           achievementsByRoll[ua.earned_on_roll_id].push({
-            name: a.name,
-            emoji: a.emoji,
-            category_emoji: a.category_emoji,
-            category_name: a.category_name,
+            name: a.name, emoji: a.emoji,
+            category_emoji: a.category_emoji, category_name: a.category_name,
           });
         }
-        // Merge Punch Card completions
         for (const pc of punchCardData ?? []) {
           if (!pc.earned_on_roll_id) continue;
           const n = pc.completion_number;
           const emoji = n <= 1 ? "🎟️" : (PUNCH_CARD_KEYCAP[n] ?? `${n}`) + "🎟️";
           if (!achievementsByRoll[pc.earned_on_roll_id]) achievementsByRoll[pc.earned_on_roll_id] = [];
           achievementsByRoll[pc.earned_on_roll_id].push({
-            name: "The Punch Card",
-            emoji,
-            category_emoji: "💎",
-            category_name: "You're a Regular",
+            name: "The Punch Card", emoji,
+            category_emoji: "💎", category_name: "You're a Regular",
           });
         }
 
@@ -143,60 +134,58 @@ export default function FeedPage() {
 
   async function toggleLike(rollId: number, likedByMe: boolean) {
     if (!myUserId) return;
-
-    // Optimistic update
     setRolls((prev) =>
       prev.map((r) =>
         r.id === rollId
-          ? {
-              ...r,
-              likedByMe: !likedByMe,
-              likeCount: likedByMe ? r.likeCount - 1 : r.likeCount + 1,
-            }
+          ? { ...r, likedByMe: !likedByMe, likeCount: likedByMe ? r.likeCount - 1 : r.likeCount + 1 }
           : r
       )
     );
-
     if (likedByMe) {
-      await supabase
-        .from("roll_likes")
-        .delete()
-        .eq("roll_id", rollId)
-        .eq("user_id", myUserId);
+      await supabase.from("roll_likes").delete().eq("roll_id", rollId).eq("user_id", myUserId);
     } else {
       await supabase.from("roll_likes").insert({ roll_id: rollId, user_id: myUserId });
     }
   }
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6">
-      <div className="text-center mb-6">
-        <h1 className="font-display text-4xl neon-text-pink tracking-widest">FEED</h1>
-        <p className="text-text-secondary text-xs mt-1 tracking-widest">What&apos;s rolling at Jackie Lee&apos;s</p>
+    <div className="min-h-screen bg-background">
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0">
+        <div className="w-8" />
+        <div className="text-center">
+          <h1 className="neon-title font-display text-[38px] tracking-[0.32em] leading-none">FEED</h1>
+          <p className="font-display text-[11px] tracking-[0.14em] text-text-muted mt-1">
+            WHAT&apos;S ROLLING AT JACKIE LEE&apos;S
+          </p>
+        </div>
+        <div className="w-8" />
       </div>
 
-      {loading ? (
-        <div className="text-center text-text-secondary py-12">Loading...</div>
-      ) : rolls.length === 0 ? (
-        <div className="text-center py-12 text-text-secondary">
-          <p className="text-5xl mb-4">🎲</p>
-          <p>No public rolls yet.</p>
-          <p className="text-sm mt-2">Make your profile public in Settings to appear here!</p>
-        </div>
-      ) : (
-        <div className="space-y-4">
-          {rolls.map((roll) => (
-            <FeedCard
-              key={roll.id}
-              roll={roll}
-              myUserId={myUserId}
-              onToggleLike={toggleLike}
-              dailyDoubleLogo={dailyDoubleLogo}
-              onUserClick={setSelectedUser}
-            />
-          ))}
-        </div>
-      )}
+      <div className="px-[18px] pb-[84px]">
+        {loading ? (
+          <div className="text-center text-text-secondary py-12">Loading...</div>
+        ) : rolls.length === 0 ? (
+          <div className="text-center py-12 text-text-secondary">
+            <p className="text-5xl mb-4">🎲</p>
+            <p>No public rolls yet.</p>
+            <p className="text-sm mt-2">Make your profile public in Settings to appear here!</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {rolls.map((roll) => (
+              <FeedCard
+                key={roll.id}
+                roll={roll}
+                myUserId={myUserId}
+                onToggleLike={toggleLike}
+                dailyDoubleLogo={dailyDoubleLogo}
+                onUserClick={setSelectedUser}
+              />
+            ))}
+          </div>
+        )}
+      </div>
 
       {selectedUser && (
         <UserProfileModal username={selectedUser} onClose={() => setSelectedUser(null)} />
@@ -224,65 +213,67 @@ function FeedCard({
 
   const timeAgo = formatTimeAgo(roll.roll_time);
   const timestamp = new Date(roll.roll_time).toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    hour12: true,
+    month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true,
   });
 
-  // For daily doubles, show the daily double drink logos (Old Time Lager + Tullamore Dew)
   const redLogo = roll.is_daily_double ? dailyDoubleLogo.beer : roll.red_drink_logo;
   const whiteLogo = roll.is_daily_double ? dailyDoubleLogo.shot : roll.white_drink_logo;
 
   return (
-    <div className={`bg-surface rounded-2xl p-4 border ${roll.is_doubles ? "border-neon-gold/40" : "border-surface-2"}`}>
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+    <div
+      className="bg-surface rounded-2xl p-[12px_14px] border"
+      style={{
+        borderColor: roll.is_doubles ? "rgba(255,214,0,0.55)" : "#252525",
+        boxShadow: roll.is_doubles ? "0 0 16px rgba(255,214,0,0.12)" : "none",
+      }}
+    >
+      {/* Header row */}
+      <div className="flex items-start justify-between mb-2.5">
         <div>
           <button
             onClick={() => onUserClick(roll.username)}
-            className="text-text-primary text-sm font-semibold hover:text-neon-pink transition-colors"
+            className="text-text-primary text-[13px] font-semibold hover:text-neon-pink transition-colors"
           >
             {roll.username}
           </button>
-          <p className="text-text-secondary text-xs">{timeAgo} · {timestamp}</p>
+          <p className="font-display text-[10px] tracking-[0.08em] text-text-muted mt-0.5">
+            {timeAgo} · {timestamp}
+          </p>
         </div>
         {roll.is_doubles && (
-          <span className={`border text-xs px-2 py-0.5 rounded-full font-display tracking-wider ${
-            roll.is_daily_double
-              ? "bg-neon-gold/30 border-neon-gold text-neon-gold"
-              : "bg-neon-gold/20 border-neon-gold text-neon-gold"
-          }`}>
+          <span
+            className="font-display text-[9px] font-bold tracking-[0.18em] px-2 py-1 rounded-full border shrink-0"
+            style={{
+              color: "#FFD600",
+              textShadow: "0 0 8px rgba(255,214,0,0.5)",
+              borderColor: "#FFD600",
+              background: roll.is_daily_double ? "rgba(255,214,0,0.25)" : "rgba(255,214,0,0.15)",
+            }}
+          >
             {roll.is_daily_double ? "DAILY DOUBLE!" : "DOUBLES!"}
           </span>
         )}
       </div>
 
-      {/* Drinks */}
-      <div className="flex items-center gap-3 mb-3">
-        <MiniDrink
-          name={roll.red_drink_name}
-          logo={redLogo}
-          dieNum={roll.red_die_number}
-          color="red"
-        />
-        <span className="text-text-secondary">+</span>
-        <MiniDrink
-          name={roll.white_drink_name}
-          logo={whiteLogo}
-          dieNum={roll.white_die_number}
-          color="white"
-        />
+      {/* Drink row */}
+      <div className="flex items-center gap-2.5 mb-2.5">
+        <MiniDrink name={roll.red_drink_name} logo={redLogo} dieNum={roll.red_die_number} color="red" />
+        <span className="text-text-muted text-sm shrink-0">+</span>
+        <MiniDrink name={roll.white_drink_name} logo={whiteLogo} dieNum={roll.white_die_number} color="white" />
       </div>
 
-      {/* Achievements earned on this roll */}
+      {/* Achievement pills */}
       {roll.achievements.length > 0 && (
-        <div className="flex flex-wrap gap-1.5 mb-3">
+        <div className="flex flex-wrap gap-1.5 mb-2.5">
           {roll.achievements.map((a) => (
             <span
               key={a.name}
-              className="inline-flex items-center gap-1 text-xs bg-neon-gold/10 border border-neon-gold/30 text-neon-gold px-2 py-0.5 rounded-full"
+              className="inline-flex items-center gap-1 font-display text-[10px] tracking-[0.08em] px-2 py-1 rounded-full border"
+              style={{
+                color: "#FFD600",
+                borderColor: "rgba(255,214,0,0.4)",
+                background: "rgba(255,214,0,0.10)",
+              }}
             >
               {a.emoji} {a.name}
             </span>
@@ -290,16 +281,22 @@ function FeedCard({
         </div>
       )}
 
-      {/* Like button */}
-      <div className="flex items-center gap-2 pt-2 border-t border-surface-2">
+      {/* Like row */}
+      <div className="flex items-center gap-1.5 pt-2 border-t border-surface-2">
         <button
           onClick={handleLike}
-          className={`flex items-center gap-1.5 transition-all ${
-            bouncing ? "scale-125" : "scale-100"
-          } ${roll.likedByMe ? "text-neon-pink" : "text-text-secondary hover:text-neon-pink"}`}
+          className="flex items-center gap-1.5 transition-all"
+          style={{
+            color: roll.likedByMe ? "#FF2D55" : "#555",
+            transform: bouncing ? "scale(1.25)" : "scale(1)",
+            transition: "transform 0.18s, color 0.15s",
+          }}
         >
-          <span className="text-lg">🎲</span>
-          <span className="text-sm font-medium">{roll.likeCount}</span>
+          <Dice6
+            className="w-4 h-4"
+            strokeWidth={roll.likedByMe ? 2.5 : 1.5}
+          />
+          <span className="font-display text-[11px]">{roll.likeCount}</span>
         </button>
       </div>
     </div>
@@ -314,23 +311,32 @@ function MiniDrink({ name, logo, dieNum, color }: {
 }) {
   const isRed = color === "red";
   return (
-    <div className="flex items-center gap-1.5 flex-1">
-      <div className={`w-7 h-7 rounded shrink-0 flex items-center justify-center ${
-        isRed ? "bg-neon-pink/10" : "bg-surface-2"
-      }`}>
+    <div className="flex items-center gap-2 flex-1 min-w-0">
+      <div
+        className="w-[34px] h-[34px] rounded-lg shrink-0 flex items-center justify-center"
+        style={{
+          background: isRed ? "#FF2D5512" : "#F5F5F508",
+          border: `1px solid ${isRed ? "rgba(255,45,85,0.32)" : "#252525"}`,
+          fontFamily: "var(--font-display, monospace)",
+          fontSize: 14,
+          fontWeight: 700,
+          color: isRed ? "#FF2D55" : "#F5F5F5",
+        }}
+      >
         {logo ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={logo} alt={name} className="w-5 h-5 object-contain" />
         ) : (
-          <span className={`font-display text-xs ${isRed ? "text-neon-pink" : "text-text-primary"}`}>
-            {dieNum}
-          </span>
+          dieNum
         )}
       </div>
-      <div>
-        <p className="text-text-primary text-xs truncate leading-tight">{name}</p>
-        <p className={`text-xs ${isRed ? "text-neon-pink/70" : "text-text-secondary"}`}>
-          {isRed ? `🔴 ${dieNum}` : `⚪ ${dieNum}`}
+      <div className="min-w-0">
+        <p className="text-text-primary text-[12px] leading-snug truncate">{name}</p>
+        <p
+          className="font-display text-[9px] tracking-[0.12em] mt-0.5"
+          style={{ color: isRed ? "rgba(255,45,85,0.75)" : "#555" }}
+        >
+          {isRed ? "BEER" : "SHOT"}
         </p>
       </div>
     </div>
@@ -338,9 +344,7 @@ function MiniDrink({ name, logo, dieNum, color }: {
 }
 
 function formatTimeAgo(isoString: string): string {
-  const now = Date.now();
-  const then = new Date(isoString).getTime();
-  const diff = Math.floor((now - then) / 1000);
+  const diff = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
   if (diff < 60) return "just now";
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;

@@ -7,7 +7,7 @@ import DiePicker from "@/components/DiePicker";
 import DoublesConfetti from "@/components/DoublesConfetti";
 import MalortCelebration from "@/components/MalortCelebration";
 import AchievementModal from "@/components/AchievementModal";
-import { CheckCircle, Settings } from "lucide-react";
+import { Check, Settings } from "lucide-react";
 import type { AchievementInfo } from "@/lib/achievements";
 
 interface MenuItem {
@@ -31,20 +31,16 @@ export default function RollPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
-
-  // Daily Double
   const [dailyDoubleChoice, setDailyDoubleChoice] = useState<boolean | null>(null);
-
-  // Achievement celebration
   const [newAchievements, setNewAchievements] = useState<AchievementInfo[]>([]);
 
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", {
-    weekday: "long", month: "long", day: "numeric",
-  });
+    weekday: "short", month: "short", day: "numeric",
+  }).toUpperCase();
   const timeStr = now.toLocaleTimeString("en-US", {
     hour: "numeric", minute: "2-digit", hour12: true,
-  });
+  }).toUpperCase();
 
   const isDoubles = redDie !== null && whiteDie !== null && redDie === whiteDie;
   const isMalort = whiteDie === 6;
@@ -60,29 +56,22 @@ export default function RollPage() {
 
   const regularRedDrink = redDie !== null ? getMenuItem("red", redDie) : null;
   const regularWhiteDrink = whiteDie !== null ? getMenuItem("white", whiteDie) : null;
-
   const dailyDoubleBeer = getMenuItem("daily_double", 1);
   const dailyDoubleShot = getMenuItem("daily_double", 2);
 
-  // The drinks actually shown / saved depend on daily double choice
   const displayRedDrink =
     isDoubles && dailyDoubleChoice === true ? dailyDoubleBeer : regularRedDrink;
   const displayWhiteDrink =
     isDoubles && dailyDoubleChoice === true ? dailyDoubleShot : regularWhiteDrink;
 
-  // Reset daily double choice when dice change
   useEffect(() => {
     setDailyDoubleChoice(null);
   }, [redDie, whiteDie]);
 
   useEffect(() => {
     async function load() {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        setUserId(user.id);
-      }
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) setUserId(user.id);
 
       const { data } = await supabase
         .from("menu_items")
@@ -96,12 +85,11 @@ export default function RollPage() {
 
   async function handleSave() {
     if (redDie === null || whiteDie === null || !userId) return;
-    if (isDoubles && dailyDoubleChoice === null) return; // must choose
+    if (isDoubles && dailyDoubleChoice === null) return;
 
     const takingDailyDouble = isDoubles && dailyDoubleChoice === true;
     const redDrink = takingDailyDouble ? dailyDoubleBeer : regularRedDrink;
     const whiteDrink = takingDailyDouble ? dailyDoubleShot : regularWhiteDrink;
-
     if (!redDrink || !whiteDrink) return;
 
     setSaving(true);
@@ -124,16 +112,13 @@ export default function RollPage() {
       const { newAchievements: earned } = await res.json();
       setSaved(true);
       if (earned && earned.length > 0) {
-        // Persist to localStorage so bottom nav can show notification dot
         try {
           const existing = JSON.parse(localStorage.getItem("new_achievements") ?? "[]");
           localStorage.setItem(
             "new_achievements",
             JSON.stringify([...existing, ...earned.map((a: AchievementInfo) => a.id)])
           );
-        } catch {
-          // ignore
-        }
+        } catch { /* ignore */ }
         setNewAchievements(earned);
       }
     }
@@ -154,134 +139,144 @@ export default function RollPage() {
     (!isDoubles || dailyDoubleChoice !== null);
 
   return (
-    <div className="min-h-screen bg-background px-4 py-6">
-      {/* Animations */}
+    <div className="min-h-screen bg-background">
       {isDoubles && <DoublesConfetti active />}
       {isMalort && !isDoubles && <MalortCelebration active />}
-
-      {/* Achievement celebration modal */}
       {newAchievements.length > 0 && (
-        <AchievementModal
-          achievements={newAchievements}
-          onClose={() => setNewAchievements([])}
-        />
+        <AchievementModal achievements={newAchievements} onClose={() => setNewAchievements([])} />
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0">
         <div className="w-8" />
         <div className="text-center">
-          <h1 className="font-display text-4xl neon-text-pink tracking-widest">ROLL</h1>
-          <p className="text-text-secondary text-xs mt-1">
+          <h1 className="neon-title font-display text-[38px] tracking-[0.32em] leading-none">ROLL</h1>
+          <p className="font-display text-[11px] tracking-[0.14em] text-text-muted mt-1">
             {dateStr} · {timeStr}
           </p>
         </div>
-        <Link href="/settings" className="text-text-secondary hover:text-text-primary">
-          <Settings className="w-5 h-5" />
+        <Link href="/settings" className="w-8 h-8 bg-surface border border-surface-2 rounded-lg flex items-center justify-center text-text-muted hover:text-text-primary transition-colors">
+          <Settings className="w-[15px] h-[15px]" strokeWidth={1.5} />
         </Link>
       </div>
 
-      {/* Dice pickers */}
-      <div className="grid grid-cols-2 gap-4 mb-6">
-        <DiePicker color="red" value={redDie} onChange={setRedDie} />
-        <DiePicker color="white" value={whiteDie} onChange={setWhiteDie} />
-      </div>
+      {/* Scrollable body */}
+      <div className="px-[18px] pb-[84px] flex flex-col gap-3.5">
+        {/* Dice pickers */}
+        <div className="grid grid-cols-2 gap-3">
+          <DiePicker color="red" value={redDie} onChange={setRedDie} />
+          <DiePicker color="white" value={whiteDie} onChange={setWhiteDie} />
+        </div>
 
-      {/* Drink display */}
-      {(displayRedDrink || displayWhiteDrink) && (
-        <div className="bg-surface rounded-2xl p-4 mb-6 border border-surface-2 animate-scale-in">
-          <p className="text-text-secondary text-xs uppercase tracking-widest text-center mb-3">
-            Tonight&apos;s Combo
-          </p>
-          <div className="flex items-center justify-around">
-            {displayRedDrink && (
-              <DrinkCard drink={displayRedDrink} dieColor="red" dieNum={redDie ?? 0} />
-            )}
-            {displayRedDrink && displayWhiteDrink && (
-              <div className="text-text-secondary text-2xl">+</div>
-            )}
-            {displayWhiteDrink && (
-              <DrinkCard drink={displayWhiteDrink} dieColor="white" dieNum={whiteDie ?? 0} />
-            )}
-          </div>
-
-          {/* Daily Double opt-in — shown when doubles are rolled and not yet saved */}
-          {isDoubles && !saved && (
-            <div className="mt-4 pt-4 border-t border-surface-2">
-              <p className="font-display text-xl neon-text-gold tracking-widest text-center animate-pulse-neon mb-3">
-                🎲 DOUBLES! 🎲
-              </p>
-
-              {dailyDoubleBeer && dailyDoubleShot && (
-                <div className="space-y-2">
-                  <p className="text-text-secondary text-xs text-center">
-                    Take the Daily Double instead?
-                  </p>
-                  <p className="text-neon-gold text-xs text-center">
-                    {dailyDoubleBeer.name} + {dailyDoubleShot.name}
-                  </p>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setDailyDoubleChoice(true)}
-                      className={`flex-1 py-2.5 rounded-xl font-display text-sm tracking-widest border transition-all ${
-                        dailyDoubleChoice === true
-                          ? "bg-neon-gold text-background border-neon-gold"
-                          : "border-neon-gold/40 text-neon-gold hover:border-neon-gold"
-                      }`}
-                    >
-                      YES — DAILY DOUBLE
-                    </button>
-                    <button
-                      onClick={() => setDailyDoubleChoice(false)}
-                      className={`flex-1 py-2.5 rounded-xl font-display text-sm tracking-widest border transition-all ${
-                        dailyDoubleChoice === false
-                          ? "bg-surface-2 text-text-primary border-surface-2"
-                          : "border-surface-2 text-text-secondary hover:text-text-primary"
-                      }`}
-                    >
-                      NO — KEEP IT
-                    </button>
-                  </div>
-                </div>
+        {/* Combo card */}
+        {(displayRedDrink || displayWhiteDrink) && (
+          <div
+            className="bg-surface border rounded-[20px] p-[14px_16px]"
+            style={{
+              borderColor: isDoubles ? "rgba(255,214,0,0.33)" : "#252525",
+              animation: "flip-in 0.3s ease-out",
+            }}
+          >
+            <p className="font-display text-[10px] tracking-[0.22em] text-center text-text-muted mb-3">
+              TONIGHT&apos;S COMBO
+            </p>
+            <div className="flex items-center justify-around">
+              {displayRedDrink && (
+                <DrinkCard drink={displayRedDrink} dieColor="red" dieNum={redDie ?? 0} />
+              )}
+              {displayRedDrink && displayWhiteDrink && (
+                <div className="text-[#333] text-[22px] shrink-0">+</div>
+              )}
+              {displayWhiteDrink && (
+                <DrinkCard drink={displayWhiteDrink} dieColor="white" dieNum={whiteDie ?? 0} />
               )}
             </div>
-          )}
 
-          {/* Malort callout */}
-          {isMalort && !isDoubles && (
-            <div className="mt-4 pt-4 border-t border-surface-2 text-center">
-              <p className="font-display text-xl neon-text-green tracking-widest">
-                😬 MALORT INCOMING 😬
-              </p>
-            </div>
-          )}
-        </div>
-      )}
+            {/* Daily Double prompt */}
+            {isDoubles && !saved && (
+              <div className="mt-4 pt-4 border-t border-surface-2">
+                <p className="font-display text-base tracking-[0.20em] text-center mb-3 neon-text-gold">
+                  🎲 DOUBLES! 🎲
+                </p>
+                {dailyDoubleBeer && dailyDoubleShot && (
+                  <div className="space-y-2">
+                    <p className="text-text-secondary text-xs text-center">
+                      Take the Daily Double instead?
+                    </p>
+                    <p className="text-neon-gold text-xs text-center">
+                      {dailyDoubleBeer.name} + {dailyDoubleShot.name}
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setDailyDoubleChoice(true)}
+                        className={`flex-1 py-2.5 rounded-[18px] font-display text-sm tracking-widest border transition-all ${
+                          dailyDoubleChoice === true
+                            ? "bg-neon-gold text-background border-neon-gold"
+                            : "border-neon-gold/40 text-neon-gold hover:border-neon-gold"
+                        }`}
+                      >
+                        YES — DAILY DOUBLE
+                      </button>
+                      <button
+                        onClick={() => setDailyDoubleChoice(false)}
+                        className={`flex-1 py-2.5 rounded-[18px] font-display text-sm tracking-widest border transition-all ${
+                          dailyDoubleChoice === false
+                            ? "bg-surface-2 text-text-primary border-surface-2"
+                            : "border-surface-2 text-text-secondary hover:text-text-primary"
+                        }`}
+                      >
+                        NO — KEEP IT
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
-      {/* Save / Saved state */}
-      {!saved ? (
-        <button
-          onClick={handleSave}
-          disabled={!canSave}
-          className="w-full bg-neon-pink text-white font-display text-2xl tracking-widest py-4 rounded-2xl hover:opacity-90 active:scale-95 transition-all disabled:opacity-30"
-        >
-          {saving ? "SAVING..." : "SAVE ROLL"}
-        </button>
-      ) : (
-        <div className="space-y-3 animate-scale-in">
-          <div className="flex items-center justify-center gap-2 text-neon-green">
-            <CheckCircle className="w-5 h-5" />
-            <span className="font-medium">Roll saved & shared to feed!</span>
+            {/* Malort callout */}
+            {isMalort && !isDoubles && (
+              <div className="mt-4 pt-4 border-t border-surface-2 text-center">
+                <p className="font-display text-sm tracking-[0.18em] neon-text-green">
+                  😬 MALORT INCOMING 😬
+                </p>
+              </div>
+            )}
           </div>
+        )}
 
+        {/* Save / Saved */}
+        {!saved ? (
           <button
-            onClick={handleReset}
-            className="w-full bg-surface border border-surface-2 text-text-secondary py-3 rounded-2xl transition-colors text-sm tracking-wider hover:text-text-primary"
+            onClick={handleSave}
+            disabled={!canSave}
+            style={
+              canSave
+                ? { boxShadow: "0 0 24px rgba(255,45,85,0.45)" }
+                : { background: "#1A0008", borderColor: "#2A0018" }
+            }
+            className={`w-full py-[18px] rounded-[18px] font-display text-[22px] tracking-[0.28em] border transition-all ${
+              canSave
+                ? "bg-neon-pink border-neon-pink text-white hover:opacity-90 active:scale-95"
+                : "text-[#FF2D5535] cursor-default"
+            }`}
           >
-            ROLL AGAIN
+            {saving ? "SAVING..." : "SAVE ROLL"}
           </button>
-        </div>
-      )}
+        ) : (
+          <div className="space-y-2.5 animate-scale-in">
+            <div className="flex items-center justify-center gap-2 neon-text-green">
+              <Check className="w-4 h-4" strokeWidth={2.5} />
+              <span className="font-display text-[13px] tracking-[0.14em]">ROLL SAVED!</span>
+            </div>
+            <button
+              onClick={handleReset}
+              className="w-full py-3.5 bg-surface border border-surface-2 rounded-[18px] font-display text-sm tracking-[0.22em] text-text-secondary hover:text-text-primary transition-colors"
+            >
+              ROLL AGAIN
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -297,30 +292,32 @@ function DrinkCard({
 }) {
   const isRed = dieColor === "red";
   return (
-    <div className="flex flex-col items-center gap-2 flex-1 px-2">
+    <div className="flex flex-col items-center gap-1.5 flex-1 px-1.5">
       <div
-        className={`w-16 h-16 rounded-xl flex items-center justify-center border-2 ${
-          isRed ? "border-neon-pink/40 bg-neon-pink/10" : "border-text-primary/20 bg-text-primary/5"
-        }`}
+        className="w-[62px] h-[62px] rounded-xl flex items-center justify-center border"
+        style={{
+          background: isRed ? "#FF2D5514" : "#F5F5F50A",
+          borderColor: isRed ? "rgba(255,45,85,0.32)" : "#333",
+        }}
       >
         {drink.logo ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={drink.logo}
-            alt={drink.name}
-            className="w-12 h-12 object-contain rounded-lg"
-          />
+          <img src={drink.logo} alt={drink.name} className="w-12 h-12 object-contain rounded-lg" />
         ) : (
           <span
-            className={`font-display text-2xl ${isRed ? "text-neon-pink" : "text-text-primary"}`}
+            className="font-display text-[28px]"
+            style={{ color: isRed ? "#FF2D55" : "#F5F5F5" }}
           >
             {dieNum}
           </span>
         )}
       </div>
       <div className="text-center">
-        <p className="text-text-primary text-xs font-medium leading-tight">{drink.name}</p>
-        <p className={`text-xs ${isRed ? "text-neon-pink/70" : "text-text-secondary"}`}>
+        <p className="text-text-primary text-[11px] font-medium leading-snug">{drink.name}</p>
+        <p
+          className="text-[10px] mt-0.5"
+          style={{ color: isRed ? "rgba(255,45,85,0.75)" : "#555" }}
+        >
           {isRed ? "Beer" : "Shot"}
         </p>
       </div>

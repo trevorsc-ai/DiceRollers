@@ -11,64 +11,91 @@ interface DiePickerProps {
 const DIE_FACES = [1, 2, 3, 4, 5, 6, 7, 8];
 
 export default function DiePicker({ color, value, onChange }: DiePickerProps) {
-  const [animating, setAnimating] = useState<number | null>(null);
+  const [lastPicked, setLastPicked] = useState<number | null>(null);
 
   const isRed = color === "red";
-  const borderSelected = isRed ? "border-neon-pink neon-border-pink" : "border-text-primary";
-  const bgSelected = isRed ? "bg-neon-pink/20" : "bg-text-primary/10";
-  const textSelected = isRed ? "text-neon-pink" : "text-text-primary";
 
   function handlePick(num: number) {
-    setAnimating(num);
-    setTimeout(() => setAnimating(null), 300);
+    setLastPicked(num);
+    setTimeout(() => setLastPicked(null), 300);
     onChange(num);
   }
 
+  const dotGlow = isRed
+    ? { background: "#FF2D55", boxShadow: "0 0 6px #FF2D55" }
+    : { background: "#F5F5F5", boxShadow: "0 0 5px rgba(255,255,255,0.5)" };
+
+  const dieFaceStyle: React.CSSProperties = {
+    width: 88,
+    height: 88,
+    clipPath: "polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%)",
+    background: value !== null ? (isRed ? "#FF2D5514" : "#F5F5F50C") : "#151515",
+    border: `2px solid ${value !== null ? (isRed ? "#FF2D55" : "#F5F5F5") : "#252525"}`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    transition: "background 0.2s, border-color 0.2s",
+    animation: value !== null
+      ? isRed
+        ? "glow-pulse-pink 2s ease-in-out infinite"
+        : "glow-pulse-white 2.2s ease-in-out infinite"
+      : "none",
+  };
+
   return (
-    <div className="flex flex-col items-center gap-3">
-      {/* Die label */}
-      <div className="flex items-center gap-2">
-        <span
-          className={`w-3 h-3 rounded-full ${isRed ? "bg-neon-pink" : "bg-text-primary"}`}
-        />
-        <span className="text-text-secondary text-xs uppercase tracking-widest font-medium">
-          {isRed ? "Beer (Red)" : "Shot (White)"}
+    <div className="flex flex-col items-center gap-2.5">
+      {/* Label row */}
+      <div className="flex items-center gap-1.5">
+        <div className="w-2 h-2 rounded-full shrink-0" style={dotGlow} />
+        <span className="font-display text-[10px] tracking-[0.18em] text-text-secondary">
+          {isRed ? "BEER · RED" : "SHOT · WHITE"}
         </span>
       </div>
 
-      {/* Selected value display — octagonal die face */}
-      <div
-        className={`relative w-24 h-24 flex items-center justify-center border-2 rounded-2xl transition-all duration-200 ${
-          value !== null
-            ? `${borderSelected} ${bgSelected}`
-            : "border-surface-2 bg-surface"
-        }`}
-        style={{
-          clipPath: "polygon(30% 0%, 70% 0%, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 0% 30%)",
-        }}
-      >
-        {value !== null ? (
-          <span className={`font-display text-5xl ${textSelected}`}>{value}</span>
-        ) : (
-          <span className="text-text-secondary text-3xl">?</span>
-        )}
+      {/* Octagonal die face */}
+      <div style={dieFaceStyle}>
+        <span
+          style={{
+            fontFamily: "var(--font-display, monospace)",
+            fontSize: value !== null ? 42 : 30,
+            fontWeight: 700,
+            lineHeight: 1,
+            color: value !== null ? (isRed ? "#FF2D55" : "#F5F5F5") : "#333",
+            transition: "all 0.15s",
+          }}
+        >
+          {value ?? "?"}
+        </span>
       </div>
 
-      {/* Number grid */}
-      <div className="grid grid-cols-4 gap-2">
+      {/* Number grid — 4×2 */}
+      <div className="grid grid-cols-4 gap-1.5">
         {DIE_FACES.map((num) => {
           const selected = value === num;
-          const isAnimating = animating === num;
+          const popping = lastPicked === num;
+
+          const btnStyle: React.CSSProperties = {
+            width: 42,
+            height: 42,
+            borderRadius: 8,
+            background: selected ? (isRed ? "#FF2D5518" : "#F5F5F510") : "#181818",
+            border: `1px solid ${selected ? (isRed ? "#FF2D55" : "#F5F5F5") : "#2A2A2A"}`,
+            color: selected ? (isRed ? "#FF2D55" : "#F5F5F5") : "#555",
+            fontFamily: "var(--font-display, monospace)",
+            fontSize: 17,
+            fontWeight: 700,
+            cursor: "pointer",
+            transition: "border-color 0.12s, color 0.12s, background 0.12s",
+            boxShadow: selected
+              ? isRed
+                ? "0 0 10px rgba(255,45,85,0.32)"
+                : "0 0 8px rgba(255,255,255,0.16)"
+              : "none",
+            animation: popping ? "btn-pop 0.28s ease-out" : "none",
+          };
+
           return (
-            <button
-              key={num}
-              onClick={() => handlePick(num)}
-              className={`w-12 h-12 rounded-lg border flex items-center justify-center font-display text-2xl transition-all duration-150 ${
-                selected
-                  ? `${borderSelected} ${bgSelected} ${textSelected}`
-                  : "border-surface-2 bg-surface text-text-secondary hover:border-surface-2 hover:text-text-primary"
-              } ${isAnimating ? "scale-125" : "scale-100"} active:scale-90`}
-            >
+            <button key={num} onClick={() => handlePick(num)} style={btnStyle}>
               {num}
             </button>
           );

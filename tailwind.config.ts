@@ -17,6 +17,12 @@ const config: Config = {
         "neon-green": "#00FF88",
         "text-primary": "#F5F5F5",
         "text-secondary": "#999999",
+        "text-muted": "#555555",
+      },
+      boxShadow: {
+        "neon-pink": "0 0 24px rgba(255, 45, 85, 0.45)",
+        "neon-gold": "0 0 16px rgba(255, 214, 0, 0.30)",
+        "neon-green": "0 0 14px rgba(0, 255, 136, 0.40)",
       },
       animation: {
         "pulse-neon": "pulse-neon 1.5s ease-in-out infinite",
@@ -25,6 +31,12 @@ const config: Config = {
         "flash": "flash 0.3s ease-in-out 3",
         "scale-in": "scale-in 0.2s ease-out",
         "bounce-once": "bounce-once 0.4s ease-in-out",
+        "neon-flicker": "neon-flicker 9s ease-in-out infinite",
+        "glow-pulse-pink": "glow-pulse-pink 2s ease-in-out infinite",
+        "glow-pulse-white": "glow-pulse-white 2.2s ease-in-out infinite",
+        "flip-in": "flip-in 0.3s ease-out",
+        "btn-pop": "btn-pop 0.28s ease-out",
+        "grow-bar": "grow-bar 0.5s ease-out both",
       },
       keyframes: {
         "pulse-neon": {
@@ -50,6 +62,19 @@ const config: Config = {
         "bounce-once": {
           "0%, 100%": { transform: "scale(1)" },
           "50%": { transform: "scale(1.25)" },
+        },
+        "flip-in": {
+          "0%": { transform: "perspective(500px) rotateX(25deg) translateY(-6px)", opacity: "0" },
+          "100%": { transform: "perspective(500px) rotateX(0deg) translateY(0)", opacity: "1" },
+        },
+        "btn-pop": {
+          "0%": { transform: "scale(1)" },
+          "40%": { transform: "scale(1.18)" },
+          "100%": { transform: "scale(1)" },
+        },
+        "grow-bar": {
+          "0%": { transform: "scaleY(0)" },
+          "100%": { transform: "scaleY(1)" },
         },
       },
     },
