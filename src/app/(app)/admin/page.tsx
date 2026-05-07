@@ -12,11 +12,26 @@ interface UserRow {
   created_at: string;
 }
 
+interface ResetState {
+  userId: string | null;
+  newPassword: string;
+  loading: boolean;
+  error: string | null;
+  success: boolean;
+}
+
 export default function AdminPage() {
   const supabase = createClient();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
+  const [resetState, setResetState] = useState<ResetState>({
+    userId: null,
+    newPassword: "",
+    loading: false,
+    error: null,
+    success: false,
+  });
 
   useEffect(() => {
     async function load() {
@@ -47,6 +62,31 @@ export default function AdminPage() {
     load();
   }, [supabase]);
 
+  function openReset(userId: string) {
+    setResetState({ userId, newPassword: "", loading: false, error: null, success: false });
+  }
+
+  function closeReset() {
+    setResetState({ userId: null, newPassword: "", loading: false, error: null, success: false });
+  }
+
+  async function submitReset() {
+    if (!resetState.userId || resetState.newPassword.length < 6) return;
+    setResetState((s) => ({ ...s, loading: true, error: null }));
+    const res = await fetch("/api/admin/reset-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: resetState.userId, newPassword: resetState.newPassword }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setResetState((s) => ({ ...s, loading: false, error: data.error ?? "Failed" }));
+    } else {
+      setResetState((s) => ({ ...s, loading: false, success: true }));
+      setTimeout(closeReset, 1500);
+    }
+  }
+
   async function toggleAdmin(userId: string, currentValue: boolean) {
     await supabase
       .from("profiles")
@@ -75,6 +115,46 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-background px-4 py-6">
+      {/* Reset Password Modal */}
+      {resetState.userId && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 px-4">
+          <div className="bg-surface rounded-2xl p-6 border border-surface-2 w-full max-w-sm">
+            <h2 className="font-display text-xl text-text-primary tracking-widest mb-1">RESET PASSWORD</h2>
+            <p className="text-text-secondary text-xs mb-4">
+              for <span className="text-text-primary">{users.find((u) => u.id === resetState.userId)?.username}</span>
+            </p>
+            <input
+              type="password"
+              value={resetState.newPassword}
+              onChange={(e) => setResetState((s) => ({ ...s, newPassword: e.target.value, error: null }))}
+              placeholder="New password (min 6 chars)"
+              minLength={6}
+              className="w-full bg-surface-2 border border-surface-2 rounded-lg px-4 py-3 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors mb-3"
+            />
+            {resetState.error && (
+              <p className="text-neon-pink text-xs mb-3">{resetState.error}</p>
+            )}
+            {resetState.success && (
+              <p className="text-neon-green text-xs mb-3">Password updated!</p>
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={closeReset}
+                className="flex-1 py-2 rounded-lg border border-surface-2 text-text-secondary text-sm hover:text-text-primary transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={submitReset}
+                disabled={resetState.loading || resetState.newPassword.length < 6}
+                className="flex-1 py-2 rounded-lg bg-neon-pink text-white text-sm font-medium hover:opacity-90 transition-all disabled:opacity-50"
+              >
+                {resetState.loading ? "..." : "Reset"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="text-center mb-6">
         <div className="flex items-center justify-center gap-2 mb-1">
           <Shield className="w-6 h-6 text-neon-pink" />
@@ -126,12 +206,18 @@ export default function AdminPage() {
                   Joined {new Date(u.created_at).toLocaleDateString()}
                 </p>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
                 {u.is_admin && (
                   <span className="bg-neon-pink/20 border border-neon-pink text-neon-pink text-xs px-2 py-0.5 rounded-full">
                     ADMIN
                   </span>
                 )}
+                <button
+                  onClick={() => openReset(u.id)}
+                  className="px-3 py-1 rounded-lg text-xs border border-surface-2 text-text-secondary hover:border-neon-gold/40 hover:text-neon-gold transition-colors"
+                >
+                  Reset PW
+                </button>
                 <button
                   onClick={() => toggleAdmin(u.id, u.is_admin)}
                   className={`px-3 py-1 rounded-lg text-xs border transition-colors ${
