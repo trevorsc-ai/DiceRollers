@@ -289,11 +289,18 @@ function AchievementCard({
               )}
             </div>
             {earned ? (
-              <span className="font-display text-[10px] text-neon-green shrink-0">
-                {a.id === "the_punch_card" && a.times_completed > 1
-                  ? `✓ ×${a.times_completed}`
-                  : "✓ EARNED"}
-              </span>
+              <div className="flex flex-col items-end gap-0.5 shrink-0">
+                <span className="font-display text-[10px] text-neon-green">
+                  {a.id === "the_punch_card" && a.times_completed > 1
+                    ? `✓ ×${a.times_completed}`
+                    : "✓ EARNED"}
+                </span>
+                {rarityCount !== undefined && (
+                  <span className="font-display text-[9px] text-text-muted">
+                    {rarityCount} earned
+                  </span>
+                )}
+              </div>
             ) : (
               rarityCount !== undefined && (
                 <span className="font-display text-[9px] text-text-muted shrink-0">
