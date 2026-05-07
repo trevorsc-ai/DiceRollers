@@ -16,6 +16,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
   const [checkingHandle, setCheckingHandle] = useState(false);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   // Debounced handle availability check (signup only)
   useEffect(() => {
@@ -179,6 +180,25 @@ export default function LoginPage() {
           >
             {loading ? "..." : mode === "login" ? "ROLL IN" : "JOIN THE BAR"}
           </button>
+
+          {mode === "login" && (
+            <div className="text-center">
+              <button
+                type="button"
+                onClick={() => setShowForgotPassword((v) => !v)}
+                className="text-text-secondary text-xs hover:text-text-primary transition-colors"
+              >
+                Forgot password?
+              </button>
+              {showForgotPassword && (
+                <div className="mt-3 bg-surface-2 rounded-lg px-4 py-3 text-xs text-text-secondary text-left space-y-1">
+                  <p className="text-text-primary font-medium">Need a password reset?</p>
+                  <p>Ask an admin to reset your password from the admin panel.</p>
+                  <p>Make sure you have a recovery email saved in your account settings so the admin can identify you.</p>
+                </div>
+              )}
+            </div>
+          )}
         </form>
       </div>
     </div>
