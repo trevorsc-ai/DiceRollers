@@ -90,7 +90,7 @@ export default function FeedPage() {
     ] = await Promise.all([
       supabase
         .from("user_achievements")
-        .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
+        .select("earned_on_roll_id, achievements(id, name, emoji, category_emoji, category_name)")
         .in("earned_on_roll_id", rollIds)
         .not("completed_at", "is", null),
       supabase
@@ -120,6 +120,8 @@ export default function FeedPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const a = (ua as any).achievements;
       if (!a || !ua.earned_on_roll_id) continue;
+      // Twinsies has its own dedicated partner badge; suppress the generic pill.
+      if (a.id === "twinsies") continue;
       if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
       achievementsByRoll[ua.earned_on_roll_id].push({
         name: a.name, emoji: a.emoji,
