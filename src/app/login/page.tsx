@@ -17,6 +17,10 @@ export default function LoginPage() {
   const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
   const [checkingHandle, setCheckingHandle] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotHandle, setForgotHandle] = useState("");
+  const [forgotStatus, setForgotStatus] = useState<
+    "idle" | "loading" | "email_sent" | "no_recovery_email" | "error"
+  >("idle");
 
   // Debounced handle availability check (signup only)
   useEffect(() => {
@@ -185,16 +189,61 @@ export default function LoginPage() {
             <div className="text-center">
               <button
                 type="button"
-                onClick={() => setShowForgotPassword((v) => !v)}
+                onClick={() => {
+                  setShowForgotPassword((v) => !v);
+                  setForgotHandle(handle);
+                  setForgotStatus("idle");
+                }}
                 className="text-text-secondary text-xs hover:text-text-primary transition-colors"
               >
                 Forgot password?
               </button>
               {showForgotPassword && (
-                <div className="mt-3 bg-surface-2 rounded-lg px-4 py-3 text-xs text-text-secondary text-left space-y-1">
+                <div className="mt-3 bg-surface-2 rounded-lg px-4 py-3 text-xs text-left space-y-2">
                   <p className="text-text-primary font-medium">Need a password reset?</p>
-                  <p>Ask an admin to reset your password from the admin panel.</p>
-                  <p>Make sure you have a recovery email saved in your account settings so the admin can identify you.</p>
+                  {forgotStatus === "email_sent" ? (
+                    <p className="text-neon-green">Check your recovery email for a reset link.</p>
+                  ) : forgotStatus === "no_recovery_email" ? (
+                    <div className="space-y-1 text-text-secondary">
+                      <p>No recovery email found on this account.</p>
+                      <p>Ask an admin to reset your password from the admin panel.</p>
+                    </div>
+                  ) : (
+                    <>
+                      <p className="text-text-secondary">Enter your handle and we&apos;ll send a reset link to your recovery email.</p>
+                      <input
+                        type="text"
+                        value={forgotHandle}
+                        onChange={(e) => setForgotHandle(e.target.value)}
+                        placeholder="your_handle"
+                        className="w-full bg-background border border-surface-2 rounded-lg px-3 py-2 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
+                      />
+                      {forgotStatus === "error" && (
+                        <p className="text-neon-pink">Something went wrong. Please try again.</p>
+                      )}
+                      <button
+                        type="button"
+                        disabled={forgotStatus === "loading" || forgotHandle.trim().length < 3}
+                        onClick={async () => {
+                          setForgotStatus("loading");
+                          try {
+                            const res = await fetch("/api/forgot-password", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ handle: forgotHandle.trim() }),
+                            });
+                            const data = await res.json();
+                            setForgotStatus(data.status === "email_sent" ? "email_sent" : "no_recovery_email");
+                          } catch {
+                            setForgotStatus("error");
+                          }
+                        }}
+                        className="w-full bg-neon-pink text-white font-medium py-2 rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+                      >
+                        {forgotStatus === "loading" ? "Sending..." : "Send Reset Email"}
+                      </button>
+                    </>
+                  )}
                 </div>
               )}
             </div>
