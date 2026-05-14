@@ -577,30 +577,13 @@ export function PodiumLeaderboard({ data, onUserTap }: Props) {
           ))}
         </div>
 
-        {/* Caption strip */}
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: 14,
-            fontFamily: "Space Mono, monospace",
-            fontSize: 8,
-            letterSpacing: "0.3em",
-            color: T.textMute,
-            paddingTop: 14,
-            paddingBottom: 10,
-            borderBottom: `1px dashed ${T.border}`,
-          }}
-        >
-          <span>↑ ROLLS</span>
-          <span style={{ color: "#FFD600aa" }}>● TROPHY WALL</span>
-        </div>
-
         {/* Tail list */}
         {tail.length > 0 && (
           <div
             style={{
               paddingTop: 10,
+              marginTop: 4,
+              borderTop: `1px dashed ${T.border}`,
               display: "flex",
               flexDirection: "column",
               gap: 5,
