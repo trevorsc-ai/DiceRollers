@@ -138,8 +138,9 @@ export default function StatsPage() {
   const [globalLoading, setGlobalLoading] = useState(false);
   const [globalFetched, setGlobalFetched] = useState(false);
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
-  const [clubMembers, setClubMembers] = useState<{ rank: number; user: string; rolls: number; date: string; you: boolean }[]>([]);
+  const [clubMembers, setClubMembers] = useState<{ rank: number; user: string; cardNumber: number; rolls: number; you: boolean }[]>([]);
   const [clubTotal, setClubTotal] = useState(0);
+  const [clubCompletions, setClubCompletions] = useState(0);
 
   useEffect(() => {
     async function loadPersonal() {
@@ -167,17 +168,18 @@ export default function StatsPage() {
       ]);
       if (!error && data) setGlobalStats(data as GlobalStats);
       if (clubData && clubData.length > 0) {
-        const total = Number((clubData as { total_members: number }[])[0].total_members);
+        const typed = clubData as { user_id: string; username: string; completion_number: number; best_rolls: number; earned_at: string; total_members: number; total_completions: number }[];
+        setClubTotal(Number(typed[0].total_members));
+        setClubCompletions(Number(typed[0].total_completions));
         setClubMembers(
-          (clubData as { user_id: string; username: string; best_rolls: number; earned_at: string }[]).map((row, idx) => ({
+          typed.map((row, idx) => ({
             rank: idx + 1,
             user: row.username,
+            cardNumber: row.completion_number,
             rolls: row.best_rolls,
-            date: new Date(row.earned_at).toLocaleDateString("en-US", { month: "short", day: "2-digit" }).toUpperCase(),
             you: row.user_id === user?.id,
           }))
         );
-        setClubTotal(total);
       }
       setGlobalLoading(false);
       setGlobalFetched(true);
@@ -361,7 +363,7 @@ export default function StatsPage() {
 
             {/* Punch Card Club — global only, below leaderboard */}
             {mode === "global" && (
-              <PunchCardClubSection members={clubMembers} totalMembers={clubTotal} />
+              <PunchCardClubSection members={clubMembers} totalMembers={clubTotal} totalCompletions={clubCompletions} />
             )}
 
             {totalRolls > 0 && (
