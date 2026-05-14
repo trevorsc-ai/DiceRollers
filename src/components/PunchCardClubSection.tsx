@@ -156,7 +156,7 @@ export function PunchCardClubSection({
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14, lineHeight: "1" }}>🎟️</span>
+          <span style={{ fontSize: 14, lineHeight: "1" }}>👊</span>
           <span
             style={{
               fontFamily: "Space Mono, monospace",

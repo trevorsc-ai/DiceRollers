@@ -53,10 +53,6 @@ interface AchievementWithProgress extends Achievement {
   punch_card_history?: PunchCardInstance[];
 }
 
-const PUNCH_CARD_KEYCAP: Record<number, string> = {
-  2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
-  6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣", 10: "🔟",
-};
 
 const CATEGORY_ORDER = [
   "youre_a_regular",
@@ -133,10 +129,7 @@ export default function AchievementsPage() {
           completed_at: ua?.completed_at ?? null,
           times_completed: timesCompleted,
           cycle_roll_count: ua?.cycle_roll_count ?? 0,
-          emoji:
-            a.id === "the_punch_card" && timesCompleted >= 2
-              ? `${PUNCH_CARD_KEYCAP[timesCompleted] ?? timesCompleted}🎟️`
-              : a.emoji,
+          emoji: a.emoji,
           punch_card_history: a.id === "the_punch_card" ? punchCardHistory : undefined,
         };
       });

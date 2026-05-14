@@ -71,13 +71,8 @@ const SPECIAL_COMBOS: Array<{ id: string; redDrink: string; whiteDrink: string }
   { id: "hot_bitch", redDrink: "Raging Bitch", whiteDrink: "Hot Hooch" },
 ];
 
-const KEYCAP_DIGITS = ["0️⃣","1️⃣","2️⃣","3️⃣","4️⃣","5️⃣","6️⃣","7️⃣","8️⃣","9️⃣"];
-
-function punchCardEmoji(timesCompleted: number): string {
-  if (timesCompleted <= 1) return "🎟️";
-  if (timesCompleted === 10) return "🔟🎟️";
-  if (timesCompleted < 10) return `${KEYCAP_DIGITS[timesCompleted]}🎟️`;
-  return `${timesCompleted}🎟️`;
+function punchCardEmoji(): string {
+  return "👊";
 }
 
 /**
@@ -262,7 +257,7 @@ export async function evaluateAchievements(
       if (info) {
         newlyCompleted.push({
           ...info,
-          emoji: punchCardEmoji(newTimesCompleted),
+          emoji: punchCardEmoji(),
         });
       }
     } else {

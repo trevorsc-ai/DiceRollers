@@ -110,11 +110,6 @@ export default function FeedPage() {
       }
     }
 
-    const PUNCH_CARD_KEYCAP: Record<number, string> = {
-      2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
-      6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣", 10: "🔟",
-    };
-
     const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
     for (const ua of achievementData ?? []) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,8 +125,7 @@ export default function FeedPage() {
     }
     for (const pc of punchCardData ?? []) {
       if (!pc.earned_on_roll_id) continue;
-      const n = pc.completion_number;
-      const emoji = n <= 1 ? "🎟️" : (PUNCH_CARD_KEYCAP[n] ?? `${n}`) + "🎟️";
+      const emoji = "👊";
       if (!achievementsByRoll[pc.earned_on_roll_id]) achievementsByRoll[pc.earned_on_roll_id] = [];
       achievementsByRoll[pc.earned_on_roll_id].push({
         name: "The Punch Card", emoji,
