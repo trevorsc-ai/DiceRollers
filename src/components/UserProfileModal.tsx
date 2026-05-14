@@ -67,11 +67,11 @@ export default function UserProfileModal({ username, onClose }: UserProfileModal
       onClick={onClose}
     >
       <div
-        className="bg-surface border border-surface-2 rounded-3xl p-6 w-full max-w-sm animate-scale-in shadow-2xl"
+        className="bg-surface border border-surface-2 rounded-3xl p-6 w-full max-w-sm animate-scale-in shadow-2xl flex flex-col max-h-[88vh]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-5 shrink-0">
           <h2 className="font-display text-xl neon-text-pink tracking-widest">
             {username.toUpperCase()}
           </h2>
@@ -95,7 +95,7 @@ export default function UserProfileModal({ username, onClose }: UserProfileModal
         ) : (
           <>
             {/* Top stats row */}
-            <div className="grid grid-cols-3 gap-2 mb-3">
+            <div className="grid grid-cols-3 gap-2 mb-3 shrink-0">
               <StatTile label="ROLLS" value={profile.total_rolls.toString()} color="pink" />
               <StatTile label="DOUBLES" value={profile.doubles_count.toString()} color="gold" />
               <StatTile label="DBL %" value={`${profile.doubles_pct}%`} color="green" />
@@ -103,7 +103,7 @@ export default function UserProfileModal({ username, onClose }: UserProfileModal
 
             {/* Beer + Shot row */}
             {(profile.most_rolled_beer || profile.most_rolled_shot) && (
-              <div className="grid grid-cols-2 gap-2 mb-5">
+              <div className="grid grid-cols-2 gap-2 mb-5 shrink-0">
                 {profile.most_rolled_beer && (
                   <StatTile
                     label="🍺 TOP BEER"
@@ -125,15 +125,15 @@ export default function UserProfileModal({ username, onClose }: UserProfileModal
 
             {/* Achievements */}
             {profile.achievements.length > 0 && (
-              <div>
-                <p className="text-text-secondary text-xs tracking-widest font-display mb-3">
+              <div className="flex flex-col flex-1 min-h-0">
+                <p className="text-text-secondary text-xs tracking-widest font-display mb-3 shrink-0">
                   ACHIEVEMENTS
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div className="overflow-y-auto flex-1 flex flex-wrap gap-1.5 content-start">
                   {profile.achievements.map((a) => (
                     <div
                       key={a.name}
-                      className="flex items-center gap-1.5 bg-surface-2 rounded-full px-3 py-1.5"
+                      className="flex items-center gap-1 bg-surface-2 rounded-full px-2.5 py-1"
                     >
                       <span className="text-sm leading-none">{a.emoji}</span>
                       <span className="text-text-primary text-xs">{a.name}</span>
