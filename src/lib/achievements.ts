@@ -453,7 +453,7 @@ export async function evaluateAchievements(
       .eq("user_id", userId)
       .order("roll_date", { ascending: false })
       .limit(50);
-    const uniqueDates = [...new Set((recentDates || []).map((r) => r.roll_date))].sort();
+    const uniqueDates = Array.from(new Set((recentDates || []).map((r) => r.roll_date))).sort();
     if (
       uniqueDates.length >= 3 &&
       uniqueDates[uniqueDates.length - 1] === roll.roll_date
@@ -477,7 +477,7 @@ export async function evaluateAchievements(
       .eq("user_id", userId)
       .order("roll_date", { ascending: false })
       .limit(50);
-    const uniqueDates = [...new Set((recentDates || []).map((r) => r.roll_date))].sort();
+    const uniqueDates = Array.from(new Set((recentDates || []).map((r) => r.roll_date))).sort();
     if (
       uniqueDates.length >= 7 &&
       uniqueDates[uniqueDates.length - 1] === roll.roll_date
