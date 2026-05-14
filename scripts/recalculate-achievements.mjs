@@ -140,26 +140,19 @@ function computeAchievements(rolls) {
     }
   }
 
-  // On Fire: doubles three times in a row
-  for (let i = 2; i < rolls.length; i++) {
-    if (rolls[i].is_doubles && rolls[i - 1].is_doubles && rolls[i - 2].is_doubles) {
-      markComplete("on_fire");
-      break;
-    }
-  }
-
   // Snake Eyes: double 1s
   if (rolls.some((r) => r.is_doubles && r.red_die_number === 1)) markComplete("snake_eyes");
 
   // Boxcars: double 8s
   if (rolls.some((r) => r.is_doubles && r.red_die_number === 8)) markComplete("boxcars");
 
-  // Hot Dice: 3+ doubles in one night
+  // Hot Dice: 2+ doubles in one night / On Fire: 3+ doubles in one night
   const doublesByDate = {};
   for (const r of rolls) {
     if (r.is_doubles) doublesByDate[r.roll_date] = (doublesByDate[r.roll_date] ?? 0) + 1;
   }
-  if (Object.values(doublesByDate).some((c) => c >= 3)) markComplete("hot_dice");
+  if (Object.values(doublesByDate).some((c) => c >= 2)) markComplete("hot_dice");
+  if (Object.values(doublesByDate).some((c) => c >= 3)) markComplete("on_fire");
 
   // Deja Vu: same combo twice in one night
   const rollsByDate = {};
