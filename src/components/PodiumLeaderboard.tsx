@@ -318,11 +318,7 @@ function PodiumStep({
           borderRadius: "0 0 10px 10px",
           padding: "8px 6px 9px",
           display: "grid",
-<<<<<<< HEAD
-          gridTemplateColumns: "repeat(5, 1fr)",
-=======
           gridTemplateColumns: "repeat(4, 1fr)",
->>>>>>> claude/implement-design-handoff-Uv8DB
           gap: 5,
           justifyItems: "center",
         }}
