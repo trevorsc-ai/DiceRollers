@@ -1,11 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Dice6 } from "lucide-react";
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
@@ -31,7 +31,7 @@ export default function ResetPasswordPage() {
         setSessionReady(true);
       }
     });
-  }, []);
+  }, [searchParams, supabase.auth]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -57,6 +57,63 @@ export default function ResetPasswordPage() {
     setTimeout(() => router.push("/roll"), 2000);
   }
 
+  if (sessionError) {
+    return <p className="text-neon-pink text-sm text-center">{sessionError}</p>;
+  }
+  if (!sessionReady) {
+    return <p className="text-text-secondary text-sm text-center">Verifying link...</p>;
+  }
+  if (success) {
+    return <p className="text-neon-green text-sm text-center">Password updated! Redirecting...</p>;
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block text-xs text-text-secondary mb-1 uppercase tracking-wider">
+          New Password
+        </label>
+        <input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={6}
+          placeholder="••••••••"
+          className="w-full bg-surface-2 border border-surface-2 rounded-lg px-4 py-3 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
+        />
+      </div>
+      <div>
+        <label className="block text-xs text-text-secondary mb-1 uppercase tracking-wider">
+          Confirm Password
+        </label>
+        <input
+          type="password"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          required
+          minLength={6}
+          placeholder="••••••••"
+          className="w-full bg-surface-2 border border-surface-2 rounded-lg px-4 py-3 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
+        />
+      </div>
+
+      {error && (
+        <p className="text-neon-pink text-sm text-center">{error}</p>
+      )}
+
+      <button
+        type="submit"
+        disabled={loading}
+        className="w-full bg-neon-pink text-white font-display text-xl tracking-widest py-3 rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
+      >
+        {loading ? "..." : "SET PASSWORD"}
+      </button>
+    </form>
+  );
+}
+
+export default function ResetPasswordPage() {
   return (
     <div className="min-h-screen bg-background flex flex-col items-center justify-center px-4">
       <div className="text-center mb-10">
@@ -76,57 +133,9 @@ export default function ResetPasswordPage() {
         <h2 className="font-display text-xl tracking-widest text-text-primary mb-4 text-center">
           RESET PASSWORD
         </h2>
-
-        {sessionError ? (
-          <p className="text-neon-pink text-sm text-center">{sessionError}</p>
-        ) : !sessionReady ? (
-          <p className="text-text-secondary text-sm text-center">Verifying link...</p>
-        ) : success ? (
-          <p className="text-neon-green text-sm text-center">Password updated! Redirecting...</p>
-        ) : (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="block text-xs text-text-secondary mb-1 uppercase tracking-wider">
-                New Password
-              </label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                placeholder="••••••••"
-                className="w-full bg-surface-2 border border-surface-2 rounded-lg px-4 py-3 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-text-secondary mb-1 uppercase tracking-wider">
-                Confirm Password
-              </label>
-              <input
-                type="password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                required
-                minLength={6}
-                placeholder="••••••••"
-                className="w-full bg-surface-2 border border-surface-2 rounded-lg px-4 py-3 text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
-              />
-            </div>
-
-            {error && (
-              <p className="text-neon-pink text-sm text-center">{error}</p>
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full bg-neon-pink text-white font-display text-xl tracking-widest py-3 rounded-lg hover:opacity-90 active:scale-95 transition-all disabled:opacity-50"
-            >
-              {loading ? "..." : "SET PASSWORD"}
-            </button>
-          </form>
-        )}
+        <Suspense fallback={<p className="text-text-secondary text-sm text-center">Loading...</p>}>
+          <ResetPasswordForm />
+        </Suspense>
       </div>
     </div>
   );
