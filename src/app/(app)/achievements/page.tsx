@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronDown } from "lucide-react";
+import { formatPartners, type TwinsiesEvent } from "@/lib/twinsies";
 
 interface Achievement {
   id: string;
@@ -20,7 +21,13 @@ interface Achievement {
 interface UserAchievement {
   achievement_id: string;
   progress: number;
-  progress_detail: { red?: number[]; white?: number[]; numbers?: number[]; combos?: string[] } | null;
+  progress_detail: {
+    red?: number[];
+    white?: number[];
+    numbers?: number[];
+    combos?: string[];
+    credited_events?: TwinsiesEvent[];
+  } | null;
   completed_at: string | null;
   times_completed?: number;
   cycle_roll_count?: number;
@@ -33,7 +40,13 @@ interface PunchCardInstance {
 
 interface AchievementWithProgress extends Achievement {
   progress: number;
-  progress_detail: { red?: number[]; white?: number[]; numbers?: number[]; combos?: string[] } | null;
+  progress_detail: {
+    red?: number[];
+    white?: number[];
+    numbers?: number[];
+    combos?: string[];
+    credited_events?: TwinsiesEvent[];
+  } | null;
   completed_at: string | null;
   times_completed: number;
   cycle_roll_count: number;
@@ -138,6 +151,7 @@ export default function AchievementsPage() {
 
   function isEarned(a: AchievementWithProgress): boolean {
     if (a.id === "the_punch_card") return a.times_completed > 0;
+    if (a.id === "twinsies") return a.progress > 0;
     return a.completed_at !== null;
   }
 
@@ -374,10 +388,74 @@ function AchievementCard({
           {a.id === "around_the_world" && (
             <AroundTheWorldGrid combos={a.progress_detail?.combos ?? []} />
           )}
+
+          {/* Twinsies log */}
+          {a.id === "twinsies" && earned && (
+            <TwinsiesLog
+              events={a.progress_detail?.credited_events ?? []}
+              count={a.progress}
+            />
+          )}
         </div>
       </div>
     </div>
   );
+}
+
+function TwinsiesLog({ events, count }: { events: TwinsiesEvent[]; count: number }) {
+  const [open, setOpen] = useState(false);
+  const sorted = [...events].sort((a, b) =>
+    a.roll_date < b.roll_date ? 1 : a.roll_date > b.roll_date ? -1 : 0
+  );
+
+  return (
+    <div className="mt-2">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between gap-2 py-1.5 px-2 rounded-lg border border-neon-gold/30 bg-neon-gold/5 hover:bg-neon-gold/10 transition-colors"
+      >
+        <span className="font-display text-[10px] tracking-[0.16em] text-neon-gold">
+          TWINSIES × {count}
+        </span>
+        <ChevronDown
+          className="w-3.5 h-3.5 text-neon-gold transition-transform duration-200"
+          strokeWidth={2}
+          style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)" }}
+        />
+      </button>
+
+      {open && sorted.length > 0 && (
+        <div className="mt-2 space-y-1.5 pl-1">
+          {sorted.map((e) => (
+            <div
+              key={e.key}
+              className="flex items-center gap-2 text-[11px] text-text-secondary"
+            >
+              <span className="font-display text-[10px] text-text-muted shrink-0 w-[58px]">
+                {formatDate(e.roll_date)}
+              </span>
+              <span className="font-display text-[11px] text-neon-pink shrink-0">
+                {e.red}
+              </span>
+              <span className="text-text-muted">·</span>
+              <span className="font-display text-[11px] text-text-primary shrink-0">
+                {e.white}
+              </span>
+              <span className="text-text-muted truncate">
+                with {formatPartners(e.partners)}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function formatDate(yyyyMmDd: string): string {
+  const [y, m, d] = yyyyMmDd.split("-").map(Number);
+  const date = new Date(y, m - 1, d);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
 }
 
 function DoublesGrid({ numbers }: { numbers: number[] }) {

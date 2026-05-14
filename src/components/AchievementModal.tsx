@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import confetti from "canvas-confetti";
 import type { AchievementInfo } from "@/lib/achievements";
+import { formatPartners } from "@/lib/twinsies";
 
 interface AchievementModalProps {
   achievements: AchievementInfo[];
@@ -29,6 +30,14 @@ export default function AchievementModal({ achievements, onClose }: AchievementM
 
   if (!achievement) return null;
 
+  const isTwinsies = achievement.id === "twinsies";
+  const twinCount = achievement.twinCount;
+  const twinPartners = achievement.twinPartners ?? [];
+  const displayName =
+    isTwinsies && twinCount && twinCount > 1
+      ? `Twinsies #${twinCount}!`
+      : achievement.name;
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6"
@@ -48,8 +57,15 @@ export default function AchievementModal({ achievements, onClose }: AchievementM
           ACHIEVEMENT UNLOCKED
         </h2>
 
-        <p className="text-text-primary text-xl font-semibold mb-1">{achievement.name}</p>
-        <p className="text-text-secondary text-sm mb-6">{achievement.description}</p>
+        <p className="text-text-primary text-xl font-semibold mb-1">{displayName}</p>
+        <p className="text-text-secondary text-sm mb-2">{achievement.description}</p>
+
+        {isTwinsies && twinPartners.length > 0 && (
+          <p className="text-neon-pink text-sm font-semibold mb-6">
+            with {formatPartners(twinPartners)}
+          </p>
+        )}
+        {!(isTwinsies && twinPartners.length > 0) && <div className="mb-4" />}
 
         {achievements.length > 1 && (
           <p className="text-neon-pink text-xs mb-4">

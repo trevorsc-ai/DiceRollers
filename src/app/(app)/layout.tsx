@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/layout/BottomNav";
+import TwinsiesReconciler from "@/components/TwinsiesReconciler";
 
 export default async function AppLayout({
   children,
@@ -26,6 +27,7 @@ export default async function AppLayout({
         {children}
       </main>
       <BottomNav />
+      <TwinsiesReconciler />
     </div>
   );
 }

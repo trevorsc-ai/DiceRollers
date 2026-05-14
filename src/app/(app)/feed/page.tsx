@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import UserProfileModal from "@/components/UserProfileModal";
 import { Dice6 } from "lucide-react";
+import { formatPartners } from "@/lib/twinsies";
 
 interface EarnedAchievement {
   name: string;
@@ -28,6 +29,7 @@ interface FeedRoll {
   likeCount: number;
   likedByMe: boolean;
   achievements: EarnedAchievement[];
+  twinPartners: string[];
 }
 
 export default function FeedPage() {
@@ -67,7 +69,11 @@ export default function FeedPage() {
 
       if (rollData) {
         const rollIds = rollData.map((r: { id: number }) => r.id);
-        const [{ data: achievementData }, { data: punchCardData }] = await Promise.all([
+        const [
+          { data: achievementData },
+          { data: punchCardData },
+          { data: twinData },
+        ] = await Promise.all([
           supabase
             .from("user_achievements")
             .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
@@ -77,7 +83,18 @@ export default function FeedPage() {
             .from("punch_card_completions")
             .select("earned_on_roll_id, completion_number")
             .in("earned_on_roll_id", rollIds),
+          supabase
+            .from("rolls_with_twins")
+            .select("id, twin_partners")
+            .in("id", rollIds),
         ]);
+
+        const twinsByRoll: Record<number, string[]> = {};
+        for (const row of (twinData ?? []) as Array<{ id: number; twin_partners: string[] | null }>) {
+          if (row.twin_partners && row.twin_partners.length > 0) {
+            twinsByRoll[row.id] = row.twin_partners;
+          }
+        }
 
         const PUNCH_CARD_KEYCAP: Record<number, string> = {
           2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
@@ -124,6 +141,7 @@ export default function FeedPage() {
           likeCount: r.roll_likes?.length ?? 0,
           likedByMe: r.roll_likes?.some((l: { user_id: string }) => l.user_id === user?.id) ?? false,
           achievements: achievementsByRoll[r.id] ?? [],
+          twinPartners: twinsByRoll[r.id] ?? [],
         }));
         setRolls(mapped);
       }
@@ -261,6 +279,22 @@ function FeedCard({
         <span className="text-text-muted text-sm shrink-0">+</span>
         <MiniDrink name={roll.white_drink_name} logo={whiteLogo} dieNum={roll.white_die_number} color="white" />
       </div>
+
+      {/* Twinsies indicator */}
+      {roll.twinPartners.length > 0 && (
+        <div className="mb-2.5">
+          <span
+            className="inline-flex items-center gap-1 font-display text-[10px] tracking-[0.08em] px-2 py-1 rounded-full border"
+            style={{
+              color: "#FFD600",
+              borderColor: "rgba(255,214,0,0.4)",
+              background: "rgba(255,214,0,0.10)",
+            }}
+          >
+            👯 TWINSIES with {formatPartners(roll.twinPartners)}
+          </span>
+        </div>
+      )}
 
       {/* Achievement pills */}
       {roll.achievements.length > 0 && (
