@@ -211,6 +211,19 @@ function computeAchievements(rolls) {
     }
   }
 
+  // Bender: 3 consecutive bar nights (any time in history)
+  const uniqueSortedDates = [...new Set(rolls.map((r) => r.roll_date))].sort();
+  const MS_PER_DAY = 86400000;
+  for (let i = 2; i < uniqueSortedDates.length; i++) {
+    const d0 = new Date(uniqueSortedDates[i - 2] + "T12:00:00").getTime();
+    const d1 = new Date(uniqueSortedDates[i - 1] + "T12:00:00").getTime();
+    const d2 = new Date(uniqueSortedDates[i] + "T12:00:00").getTime();
+    if (d1 - d0 === MS_PER_DAY && d2 - d1 === MS_PER_DAY) {
+      markComplete("bender");
+      break;
+    }
+  }
+
   // ── DANGER ZONE ──────────────────────────────────────────────────────────
 
   // Run It Back: 2+ rolls same night
