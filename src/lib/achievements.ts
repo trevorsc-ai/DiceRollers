@@ -249,6 +249,7 @@ export async function evaluateAchievements(
           earned_on_roll_id: rollId,
           completion_number: newTimesCompleted,
           earned_at: now,
+          rolls_to_complete: punchRolls!.length,
         }),
       ]);
       const info = await fetchAchievementInfo("the_punch_card");

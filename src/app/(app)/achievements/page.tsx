@@ -25,11 +25,17 @@ interface UserAchievement {
   times_completed?: number;
 }
 
+interface PunchCardInstance {
+  n: number;
+  rolls: number | null;
+}
+
 interface AchievementWithProgress extends Achievement {
   progress: number;
   progress_detail: { red?: number[]; white?: number[]; numbers?: number[]; combos?: string[] } | null;
   completed_at: string | null;
   times_completed: number;
+  punch_card_history?: PunchCardInstance[];
 }
 
 const PUNCH_CARD_KEYCAP: Record<number, string> = {
@@ -72,13 +78,18 @@ export default function AchievementsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [{ data: allAchievements }, { data: userProgress }, { data: rarityData }] = await Promise.all([
+      const [{ data: allAchievements }, { data: userProgress }, { data: rarityData }, { data: punchHistory }] = await Promise.all([
         supabase.from("achievements").select("*").order("sort_order"),
         supabase
           .from("user_achievements")
           .select("achievement_id, progress, progress_detail, completed_at, times_completed")
           .eq("user_id", user.id),
         supabase.rpc("get_achievement_rarity"),
+        supabase
+          .from("punch_card_completions")
+          .select("completion_number, rolls_to_complete")
+          .eq("user_id", user.id)
+          .order("completion_number", { ascending: false }),
       ]);
 
       if (!allAchievements) return;
@@ -91,6 +102,11 @@ export default function AchievementsPage() {
           r.achievement_id, Number(r.unlock_count),
         ])
       );
+
+      const punchCardHistory: PunchCardInstance[] = (punchHistory || []).map((row) => ({
+        n: row.completion_number,
+        rolls: row.rolls_to_complete ?? null,
+      }));
 
       const merged: AchievementWithProgress[] = allAchievements.map((a) => {
         const ua = progressMap.get(a.id);
@@ -105,6 +121,7 @@ export default function AchievementsPage() {
             a.id === "the_punch_card" && timesCompleted >= 2
               ? `${PUNCH_CARD_KEYCAP[timesCompleted] ?? timesCompleted}🎟️`
               : a.emoji,
+          punch_card_history: a.id === "the_punch_card" ? punchCardHistory : undefined,
         };
       });
 
@@ -290,12 +307,10 @@ function AchievementCard({
             </div>
             {earned ? (
               <div className="flex flex-col items-end gap-0.5 shrink-0">
-                <span className="font-display text-[10px] text-neon-green">
-                  {a.id === "the_punch_card" && a.times_completed > 1
-                    ? `✓ ×${a.times_completed}`
-                    : "✓ EARNED"}
+                <span className="font-display text-[10px] text-neon-green flex items-center gap-[3px]">
+                  ✓ EARNED
                 </span>
-                {rarityCount !== undefined && (
+                {rarityCount !== undefined && a.id !== "the_punch_card" && (
                   <span className="font-display text-[9px] text-text-muted">
                     {rarityCount} earned
                   </span>
@@ -336,6 +351,11 @@ function AchievementCard({
           {/* Punch Card grid */}
           {a.id === "the_punch_card" && (a.progress_detail || earned) && (
             <PunchCardGrid detail={a.progress_detail ?? {}} />
+          )}
+
+          {/* Punch Card earned history */}
+          {a.id === "the_punch_card" && earned && a.punch_card_history && a.punch_card_history.length > 0 && (
+            <PunchCardEarnedHistory history={a.punch_card_history} />
           )}
 
           {/* Double Trouble tracker */}
@@ -400,6 +420,114 @@ function AroundTheWorldGrid({ combos }: { combos: string[] }) {
           <span className="text-[8px] text-neon-pink w-5 shrink-0">Red</span>
           <span className="text-[8px] text-text-secondary">{hit.size}/64 combos hit</span>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function PunchCardEarnedHistory({ history }: { history: PunchCardInstance[] }) {
+  const withRolls = history.filter((p) => p.rolls !== null);
+  const best = withRolls.length > 0 ? Math.min(...withRolls.map((p) => p.rolls as number)) : null;
+
+  return (
+    <div
+      style={{
+        marginTop: 14,
+        paddingTop: 12,
+        borderTop: "1px dashed #252525",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {/* Section header */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span
+          className="font-display"
+          style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.22em", color: "#999999" }}
+        >
+          EARNED HISTORY
+        </span>
+        <span
+          className="font-display"
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: "0.1em",
+            color: "#FFD600",
+            textShadow: "0 0 6px rgba(255,214,0,0.4)",
+          }}
+        >
+          {history.length} EARNED
+        </span>
+      </div>
+
+      {/* History rows */}
+      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+        {history.map((instance) => {
+          const isPR = best !== null && instance.rolls === best;
+          const rowColor = isPR ? "#FFD600" : "#F5F5F5";
+          const dotColor = isPR ? "rgba(255,214,0,0.5)" : "#252525";
+          const rollsWordColor = isPR ? "rgba(255,214,0,0.67)" : "#999999";
+
+          return (
+            <div
+              key={instance.n}
+              style={{ display: "flex", alignItems: "center", gap: 8, color: rowColor }}
+            >
+              {/* Card label */}
+              <span
+                className="font-display"
+                style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", minWidth: 74, flexShrink: 0 }}
+              >
+                CARD #{String(instance.n).padStart(2, "0")}
+              </span>
+
+              {/* Leader dots */}
+              <div
+                style={{
+                  flex: 1,
+                  height: 1,
+                  alignSelf: "center",
+                  backgroundImage: `radial-gradient(circle, ${dotColor} 1px, transparent 1.2px)`,
+                  backgroundSize: "4px 1px",
+                  backgroundRepeat: "repeat-x",
+                }}
+              />
+
+              {/* Rolls count */}
+              {instance.rolls !== null ? (
+                <span className="font-display" style={{ fontSize: 11, flexShrink: 0 }}>
+                  <span style={{ fontWeight: 700, letterSpacing: "0.05em" }}>{instance.rolls}</span>
+                  <span style={{ fontWeight: 400, color: rollsWordColor }}> ROLLS</span>
+                </span>
+              ) : (
+                <span className="font-display" style={{ fontSize: 11, flexShrink: 0, color: "#555555" }}>
+                  —
+                </span>
+              )}
+
+              {/* PR badge */}
+              {isPR && (
+                <span
+                  className="font-display"
+                  style={{
+                    fontSize: 8,
+                    fontWeight: 700,
+                    letterSpacing: "0.18em",
+                    background: "#FFD600",
+                    color: "#0D0D0D",
+                    padding: "2px 4px",
+                    borderRadius: 3,
+                    boxShadow: "0 0 6px rgba(255,214,0,0.5)",
+                    flexShrink: 0,
+                  }}
+                >
+                  PR
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
