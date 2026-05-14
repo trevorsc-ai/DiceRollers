@@ -130,6 +130,19 @@ body {
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
 
+/* ── Podium rank-1 gold shimmer ── */
+@keyframes goldShimmer {
+  0%, 100% { box-shadow: 0 0 14px rgba(255, 214, 0, 0.25); }
+  50%       { box-shadow: 0 0 24px rgba(255, 214, 0, 0.50),
+                          0 0 40px rgba(255, 214, 0, 0.19); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  @keyframes goldShimmer {
+    0%, 100% { box-shadow: 0 0 14px rgba(255, 214, 0, 0.25); }
+  }
+}
+
 /* ── Punch card live-row pulse dot ── */
 @keyframes livePulse {
   0%, 100% { opacity: 1;    box-shadow: 0 0 4px #FF2D55, 0 0 10px rgba(255, 45, 85, 0.5); }
