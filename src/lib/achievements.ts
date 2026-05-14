@@ -469,6 +469,34 @@ export async function evaluateAchievements(
     }
   }
 
+  // My New Home: 7 consecutive bar nights (streak must end on today's roll)
+  if (!completed.has("my_new_home")) {
+    const { data: recentDates } = await adminSupabase
+      .from("rolls")
+      .select("roll_date")
+      .eq("user_id", userId)
+      .order("roll_date", { ascending: false })
+      .limit(50);
+    const uniqueDates = [...new Set((recentDates || []).map((r) => r.roll_date))].sort();
+    if (
+      uniqueDates.length >= 7 &&
+      uniqueDates[uniqueDates.length - 1] === roll.roll_date
+    ) {
+      const last7 = uniqueDates.slice(-7);
+      const MS_PER_DAY = 86400000;
+      let consecutive = true;
+      for (let i = 1; i < last7.length; i++) {
+        if (new Date(last7[i] + "T12:00:00").getTime() - new Date(last7[i - 1] + "T12:00:00").getTime() !== MS_PER_DAY) {
+          consecutive = false;
+          break;
+        }
+      }
+      if (consecutive) {
+        await markComplete("my_new_home");
+      }
+    }
+  }
+
   // ── DANGER ZONE ──────────────────────────────────────────────────────
 
   // Run It Back: 2+ rolls same night

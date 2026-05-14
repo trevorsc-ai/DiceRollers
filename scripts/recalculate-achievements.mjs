@@ -224,6 +224,17 @@ function computeAchievements(rolls) {
     }
   }
 
+  // My New Home: 7 consecutive bar nights (any time in history)
+  for (let i = 6; i < uniqueSortedDates.length; i++) {
+    let consecutive = true;
+    for (let j = 1; j <= 6; j++) {
+      const prev = new Date(uniqueSortedDates[i - j] + "T12:00:00").getTime();
+      const curr = new Date(uniqueSortedDates[i - j + 1] + "T12:00:00").getTime();
+      if (curr - prev !== MS_PER_DAY) { consecutive = false; break; }
+    }
+    if (consecutive) { markComplete("my_new_home"); break; }
+  }
+
   // ── DANGER ZONE ──────────────────────────────────────────────────────────
 
   // Run It Back: 2+ rolls same night
