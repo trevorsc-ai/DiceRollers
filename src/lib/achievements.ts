@@ -409,15 +409,15 @@ export async function evaluateAchievements(
     }
   }
 
-  // On Fire: doubles three times in a row
+  // On Fire: 3+ doubles in one night
   if (!completed.has("on_fire")) {
-    const { data: recent } = await adminSupabase
+    const { count } = await adminSupabase
       .from("rolls")
-      .select("is_doubles")
+      .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .order("roll_time", { ascending: false })
-      .limit(3);
-    if (recent && recent.length >= 3 && recent.every((r) => r.is_doubles)) {
+      .eq("roll_date", roll.roll_date)
+      .eq("is_doubles", true);
+    if ((count ?? 0) >= 3) {
       await markComplete("on_fire");
     }
   }
@@ -432,7 +432,7 @@ export async function evaluateAchievements(
     await markComplete("boxcars");
   }
 
-  // Hot Dice: 3+ doubles in one night
+  // Hot Dice: 2+ doubles in one night
   if (!completed.has("hot_dice")) {
     const { count } = await adminSupabase
       .from("rolls")
@@ -440,7 +440,7 @@ export async function evaluateAchievements(
       .eq("user_id", userId)
       .eq("roll_date", roll.roll_date)
       .eq("is_doubles", true);
-    if ((count ?? 0) >= 3) {
+    if ((count ?? 0) >= 2) {
       await markComplete("hot_dice");
     }
   }
