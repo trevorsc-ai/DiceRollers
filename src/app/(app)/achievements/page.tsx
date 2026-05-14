@@ -23,6 +23,7 @@ interface UserAchievement {
   progress_detail: { red?: number[]; white?: number[]; numbers?: number[]; combos?: string[] } | null;
   completed_at: string | null;
   times_completed?: number;
+  cycle_roll_count?: number;
 }
 
 interface PunchCardInstance {
@@ -35,6 +36,7 @@ interface AchievementWithProgress extends Achievement {
   progress_detail: { red?: number[]; white?: number[]; numbers?: number[]; combos?: string[] } | null;
   completed_at: string | null;
   times_completed: number;
+  cycle_roll_count: number;
   punch_card_history?: PunchCardInstance[];
 }
 
@@ -82,7 +84,7 @@ export default function AchievementsPage() {
         supabase.from("achievements").select("*").order("sort_order"),
         supabase
           .from("user_achievements")
-          .select("achievement_id, progress, progress_detail, completed_at, times_completed")
+          .select("achievement_id, progress, progress_detail, completed_at, times_completed, cycle_roll_count")
           .eq("user_id", user.id),
         supabase.rpc("get_achievement_rarity"),
         supabase
@@ -117,6 +119,7 @@ export default function AchievementsPage() {
           progress_detail: ua?.progress_detail ?? null,
           completed_at: ua?.completed_at ?? null,
           times_completed: timesCompleted,
+          cycle_roll_count: ua?.cycle_roll_count ?? 0,
           emoji:
             a.id === "the_punch_card" && timesCompleted >= 2
               ? `${PUNCH_CARD_KEYCAP[timesCompleted] ?? timesCompleted}🎟️`
@@ -353,9 +356,12 @@ function AchievementCard({
             <PunchCardGrid detail={a.progress_detail ?? {}} />
           )}
 
-          {/* Punch Card earned history */}
+          {/* Punch Card log */}
           {a.id === "the_punch_card" && earned && a.punch_card_history && a.punch_card_history.length > 0 && (
-            <PunchCardEarnedHistory history={a.punch_card_history} />
+            <PunchCardLog
+              history={a.punch_card_history}
+              liveRolls={a.cycle_roll_count}
+            />
           )}
 
           {/* Double Trouble tracker */}
@@ -425,9 +431,10 @@ function AroundTheWorldGrid({ combos }: { combos: string[] }) {
   );
 }
 
-function PunchCardEarnedHistory({ history }: { history: PunchCardInstance[] }) {
+function PunchCardLog({ history, liveRolls }: { history: PunchCardInstance[]; liveRolls: number }) {
   const withRolls = history.filter((p) => p.rolls !== null);
   const best = withRolls.length > 0 ? Math.min(...withRolls.map((p) => p.rolls as number)) : null;
+  const liveCardN = history.length > 0 ? Math.max(...history.map((p) => p.n)) + 1 : 1;
 
   return (
     <div
@@ -445,7 +452,7 @@ function PunchCardEarnedHistory({ history }: { history: PunchCardInstance[] }) {
           className="font-display"
           style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.22em", color: "#999999" }}
         >
-          EARNED HISTORY
+          PUNCH CARD LOG
         </span>
         <span
           className="font-display"
@@ -461,8 +468,68 @@ function PunchCardEarnedHistory({ history }: { history: PunchCardInstance[] }) {
         </span>
       </div>
 
-      {/* History rows */}
+      {/* Log rows */}
       <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+
+        {/* Live row */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            padding: "4px 6px",
+            margin: "-4px -6px",
+            background: "linear-gradient(90deg, rgba(255,45,85,0.06), transparent 70%)",
+            border: "1px solid rgba(255,45,85,0.19)",
+            borderRadius: 5,
+            color: "#F5F5F5",
+          }}
+        >
+          {/* Card label with pulsing dot */}
+          <span
+            className="font-display"
+            style={{
+              display: "flex", alignItems: "center", gap: 6,
+              fontSize: 11, fontWeight: 700, letterSpacing: "0.08em",
+              minWidth: 74, flexShrink: 0,
+            }}
+          >
+            <span className="live-pulse-dot" />
+            CARD #{String(liveCardN).padStart(2, "0")}
+          </span>
+
+          {/* Leader dots — pink tint */}
+          <div
+            style={{
+              flex: 1,
+              height: 1,
+              alignSelf: "center",
+              backgroundImage: "radial-gradient(circle, rgba(255,45,85,0.38) 1px, transparent 1.2px)",
+              backgroundSize: "4px 1px",
+              backgroundRepeat: "repeat-x",
+            }}
+          />
+
+          {/* LIVE badge */}
+          <span
+            className="font-display"
+            style={{
+              fontSize: 8, fontWeight: 700, letterSpacing: "0.18em",
+              color: "#FF2D55", textShadow: "0 0 6px rgba(255,45,85,0.5)",
+              flexShrink: 0,
+            }}
+          >
+            LIVE
+          </span>
+
+          {/* Roll count */}
+          <span className="font-display" style={{ fontSize: 11, flexShrink: 0 }}>
+            <span style={{ fontWeight: 700, letterSpacing: "0.05em", color: "#F5F5F5" }}>{liveRolls}</span>
+            <span style={{ fontWeight: 400, color: "#999999" }}> ROLLS</span>
+          </span>
+        </div>
+
+        {/* Completed rows */}
         {history.map((instance) => {
           const isPR = best !== null && instance.rolls === best;
           const rowColor = isPR ? "#FFD600" : "#F5F5F5";
@@ -474,7 +541,6 @@ function PunchCardEarnedHistory({ history }: { history: PunchCardInstance[] }) {
               key={instance.n}
               style={{ display: "flex", alignItems: "center", gap: 8, color: rowColor }}
             >
-              {/* Card label */}
               <span
                 className="font-display"
                 style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", minWidth: 74, flexShrink: 0 }}
@@ -482,7 +548,6 @@ function PunchCardEarnedHistory({ history }: { history: PunchCardInstance[] }) {
                 CARD #{String(instance.n).padStart(2, "0")}
               </span>
 
-              {/* Leader dots */}
               <div
                 style={{
                   flex: 1,
@@ -494,7 +559,6 @@ function PunchCardEarnedHistory({ history }: { history: PunchCardInstance[] }) {
                 }}
               />
 
-              {/* Rolls count */}
               {instance.rolls !== null ? (
                 <span className="font-display" style={{ fontSize: 11, flexShrink: 0 }}>
                   <span style={{ fontWeight: 700, letterSpacing: "0.05em" }}>{instance.rolls}</span>
@@ -506,18 +570,13 @@ function PunchCardEarnedHistory({ history }: { history: PunchCardInstance[] }) {
                 </span>
               )}
 
-              {/* PR badge */}
               {isPR && (
                 <span
                   className="font-display"
                   style={{
-                    fontSize: 8,
-                    fontWeight: 700,
-                    letterSpacing: "0.18em",
-                    background: "#FFD600",
-                    color: "#0D0D0D",
-                    padding: "2px 4px",
-                    borderRadius: 3,
+                    fontSize: 8, fontWeight: 700, letterSpacing: "0.18em",
+                    background: "#FFD600", color: "#0D0D0D",
+                    padding: "2px 4px", borderRadius: 3,
                     boxShadow: "0 0 6px rgba(255,214,0,0.5)",
                     flexShrink: 0,
                   }}

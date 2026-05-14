@@ -129,3 +129,19 @@ body {
 .pb-safe {
   padding-bottom: calc(4rem + env(safe-area-inset-bottom));
 }
+
+/* ── Punch card live-row pulse dot ── */
+@keyframes livePulse {
+  0%, 100% { opacity: 1;    box-shadow: 0 0 4px #FF2D55, 0 0 10px rgba(255, 45, 85, 0.5); }
+  50%       { opacity: 0.45; box-shadow: 0 0 2px rgba(255, 45, 85, 0.38); }
+}
+
+.live-pulse-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #FF2D55;
+  flex-shrink: 0;
+  animation: livePulse 1.4s ease-in-out infinite;
+}
