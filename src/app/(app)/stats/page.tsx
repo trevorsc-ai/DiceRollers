@@ -6,6 +6,7 @@ import Link from "next/link";
 import UserProfileModal from "@/components/UserProfileModal";
 import { Flame } from "lucide-react";
 import { PunchCardClubSection } from "@/components/PunchCardClubSection";
+import { PodiumLeaderboard, type PodiumLeaderboardData, type PodiumRoller } from "@/components/PodiumLeaderboard";
 
 interface Roll {
   id: number;
@@ -140,6 +141,7 @@ export default function StatsPage() {
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
   const [clubMembers, setClubMembers] = useState<{ rank: number; user: string; rolls: number; date: string; you: boolean }[]>([]);
   const [clubTotal, setClubTotal] = useState(0);
+  const [podiumData, setPodiumData] = useState<PodiumLeaderboardData | null>(null);
 
   useEffect(() => {
     async function loadPersonal() {
@@ -161,9 +163,10 @@ export default function StatsPage() {
     async function loadGlobal() {
       setGlobalLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
-      const [{ data, error }, { data: clubData }] = await Promise.all([
+      const [{ data, error }, { data: clubData }, { data: podiumRaw }] = await Promise.all([
         supabase.rpc("get_global_stats"),
         supabase.rpc("get_punch_card_club"),
+        supabase.rpc("get_podium_leaderboard"),
       ]);
       if (!error && data) setGlobalStats(data as GlobalStats);
       if (clubData && clubData.length > 0) {
@@ -178,6 +181,13 @@ export default function StatsPage() {
           }))
         );
         setClubTotal(total);
+      }
+      if (podiumRaw) {
+        const raw = podiumRaw as PodiumLeaderboardData & { rollers: (PodiumRoller & { user_id: string })[] };
+        setPodiumData({
+          ...raw,
+          rollers: raw.rollers.map((r) => ({ ...r, you: r.user_id === user?.id })),
+        });
       }
       setGlobalLoading(false);
       setGlobalFetched(true);
@@ -261,8 +271,6 @@ export default function StatsPage() {
     return s;
   })();
 
-  const leaderboard = globalStats?.leaderboard ?? [];
-
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -334,32 +342,15 @@ export default function StatsPage() {
               </div>
             )}
 
-            {/* Leaderboard — global only */}
-            {mode === "global" && leaderboard.length > 0 && (
-              <div className="bg-surface rounded-2xl p-4 border border-surface-2">
-                <h2 className="font-display text-base neon-text-gold tracking-widest mb-3">🏆 LEADERBOARD</h2>
-                <div className="space-y-1.5">
-                  {leaderboard.map((entry, i) => (
-                    <button
-                      key={entry.username}
-                      className="flex items-center gap-3 w-full text-left rounded-xl px-2 py-1 -mx-2 hover:bg-surface-2 transition-colors"
-                      onClick={() => setSelectedUser(entry.username)}
-                    >
-                      <span className={`font-display text-base w-6 shrink-0 ${
-                        i === 0 ? "text-neon-gold" : i === 1 ? "text-text-secondary" : i === 2 ? "text-neon-pink/60" : "text-text-secondary"
-                      }`}>{i + 1}</span>
-                      <span className="text-text-primary text-sm">{entry.username}</span>
-                      {entry.flair && entry.flair.length > 0 && (
-                        <span className="text-sm leading-none">{entry.flair.join("")}</span>
-                      )}
-                      <span className="ml-auto text-text-secondary text-sm shrink-0">{entry.count} rolls</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
+            {/* Podium leaderboard — global only, top of ALL ROLLERS */}
+            {mode === "global" && podiumData && (
+              <PodiumLeaderboard
+                data={podiumData}
+                onUserTap={(username) => setSelectedUser(username)}
+              />
             )}
 
-            {/* Punch Card Club — global only, below leaderboard */}
+            {/* Punch Card Club — global only, below podium */}
             {mode === "global" && (
               <PunchCardClubSection members={clubMembers} totalMembers={clubTotal} />
             )}
