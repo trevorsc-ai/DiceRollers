@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Trophy, Crown } from "lucide-react";
 
 /* ── Types ─────────────────────────────────────────────────────────── */
@@ -631,7 +632,18 @@ export function PodiumLeaderboard({ data, onUserTap }: Props) {
           }}
         >
           <span>+ {Math.max(0, total_rollers - rollers.length)} MORE ROLLERS</span>
-          <span style={{ color: T.pink, cursor: "pointer" }}>SEE ALL ›</span>
+          <Link
+            href="/stats/leaderboard"
+            style={{
+              color: T.pink,
+              textDecoration: "none",
+              fontFamily: "Space Mono, monospace",
+              fontSize: 9,
+              letterSpacing: "0.16em",
+            }}
+          >
+            SEE ALL ›
+          </Link>
         </div>
       </div>
     </>
