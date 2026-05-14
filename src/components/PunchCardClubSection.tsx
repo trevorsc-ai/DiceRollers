@@ -144,8 +144,6 @@ export function PunchCardClubSection({
 }) {
   if (members.length === 0) return null;
 
-  const showing = members.length;
-
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       {/* Section header */}
@@ -235,25 +233,6 @@ export function PunchCardClubSection({
           ))}
         </div>
 
-        {/* Footer */}
-        <div
-          style={{
-            marginTop: 10,
-            paddingTop: 8,
-            borderTop: `1px dashed ${T.border}`,
-            display: "flex",
-            justifyContent: "space-between",
-            fontFamily: "Space Mono, monospace",
-            fontSize: 9,
-            letterSpacing: "0.16em",
-            color: T.textMute,
-          }}
-        >
-          <span>
-            SHOWING 1–{showing} OF {totalCompletions}
-          </span>
-          <span style={{ color: T.pink, cursor: "pointer" }}>VIEW ALL ›</span>
-        </div>
       </div>
     </div>
   );
