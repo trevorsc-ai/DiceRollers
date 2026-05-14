@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { ChevronDown } from "lucide-react";
+import { PunchCardClubSection } from "@/components/PunchCardClubSection";
 
 interface Achievement {
   id: string;
@@ -29,6 +30,14 @@ interface UserAchievement {
 interface PunchCardInstance {
   n: number;
   rolls: number | null;
+}
+
+interface ClubMember {
+  rank: number;
+  user: string;
+  rolls: number;
+  date: string;
+  you: boolean;
 }
 
 interface AchievementWithProgress extends Achievement {
@@ -63,6 +72,8 @@ export default function AchievementsPage() {
   const [loading, setLoading] = useState(true);
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState<FilterMode>("all");
+  const [clubMembers, setClubMembers] = useState<ClubMember[]>([]);
+  const [clubTotal, setClubTotal] = useState(0);
 
   function toggleCategory(cat: string) {
     setCollapsed((prev) => {
@@ -80,7 +91,7 @@ export default function AchievementsPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [{ data: allAchievements }, { data: userProgress }, { data: rarityData }, { data: punchHistory }] = await Promise.all([
+      const [{ data: allAchievements }, { data: userProgress }, { data: rarityData }, { data: punchHistory }, { data: clubData }] = await Promise.all([
         supabase.from("achievements").select("*").order("sort_order"),
         supabase
           .from("user_achievements")
@@ -92,6 +103,7 @@ export default function AchievementsPage() {
           .select("completion_number, rolls_to_complete")
           .eq("user_id", user.id)
           .order("completion_number", { ascending: false }),
+        supabase.rpc("get_punch_card_club"),
       ]);
 
       if (!allAchievements) return;
@@ -130,6 +142,20 @@ export default function AchievementsPage() {
 
       setAchievements(merged);
       setRarityMap(rarityMapData);
+
+      if (clubData && clubData.length > 0) {
+        const total = Number(clubData[0].total_members);
+        const members: ClubMember[] = (clubData as { user_id: string; username: string; best_rolls: number; earned_at: string }[]).map((row, idx) => ({
+          rank: idx + 1,
+          user: row.username,
+          rolls: row.best_rolls,
+          date: new Date(row.earned_at).toLocaleDateString("en-US", { month: "short", day: "2-digit" }).toUpperCase(),
+          you: row.user_id === user.id,
+        }));
+        setClubMembers(members);
+        setClubTotal(total);
+      }
+
       setLoading(false);
     }
 
@@ -260,6 +286,9 @@ export default function AchievementsPage() {
             </div>
           );
         })}
+
+        {/* Punch Card Club — additive section, ranked by fewest rolls */}
+        <PunchCardClubSection members={clubMembers} totalMembers={clubTotal} />
       </div>
     </div>
   );
