@@ -91,24 +91,6 @@ function EmojiBadge({
   );
 }
 
-/* ── Empty badge — dashed circle for unearned slots ────────────── */
-
-function EmptyBadge({ size }: { size: number }) {
-  return (
-    <div
-      aria-hidden
-      style={{
-        width: size,
-        height: size,
-        borderRadius: "50%",
-        border: `1px dashed ${T.border}`,
-        opacity: 0.5,
-        flexShrink: 0,
-      }}
-    />
-  );
-}
-
 /* ── Emoji stamp — rounded square, used in tail rows ───────────── */
 
 function EmojiStamp({
@@ -154,12 +136,10 @@ const INIT_FONT: Record<number, number>     = { 1: 16, 2: 13, 3: 13 };
 function PodiumStep({
   m,
   achievements,
-  achTotal,
   onTap,
 }: {
   m: PodiumRoller & { rank: number };
   achievements: PodiumAchievement[];
-  achTotal: number;
   onTap?: () => void;
 }) {
   const c         = rankColor(m.rank);
@@ -172,7 +152,6 @@ function PodiumStep({
   // Map sort_orders → achievement objects, preserving canonical order
   const sortSet   = new Set(m.earned_sort_orders);
   const earnedAch = achievements.filter((a) => sortSet.has(a.sort_order));
-  const emptySlots = Math.max(0, achTotal - earnedAch.length);
 
   const initials  = m.username.slice(0, 2).toUpperCase();
   const label     = m.username.length > 9
@@ -326,9 +305,6 @@ function PodiumStep({
         {earnedAch.map((a) => (
           <EmojiBadge key={a.id} ach={a} size={badgeSz} accent={c} />
         ))}
-        {Array.from({ length: emptySlots }).map((_, i) => (
-          <EmptyBadge key={`empty-${i}`} size={badgeSz} />
-        ))}
       </div>
 
       {/* X/N EARNED */}
@@ -342,7 +318,7 @@ function PodiumStep({
           marginTop: -2,
         }}
       >
-        {earnedAch.length}/{achTotal} EARNED
+        {earnedAch.length} EARNED
       </span>
     </button>
   );
@@ -493,7 +469,6 @@ export function PodiumLeaderboard({ data, onUserTap }: Props) {
   const tail   = ranked.slice(3);
   // Classic podium silhouette: 2nd left · 1st center · 3rd right
   const podium = [top3[1], top3[0], top3[2]].filter(Boolean);
-  const achTotal = achievements.length;
 
   return (
     <>
@@ -571,7 +546,6 @@ export function PodiumLeaderboard({ data, onUserTap }: Props) {
               key={m.user_id}
               m={m}
               achievements={achievements}
-              achTotal={achTotal}
               onTap={onUserTap ? () => onUserTap(m.username) : undefined}
             />
           ))}
