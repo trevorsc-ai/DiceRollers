@@ -13,13 +13,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_result jsonb;
-  v_ach_sort_orders int[];
 BEGIN
-  -- Capture the sort_order values of the first 10 achievements so we can
-  -- filter consistently throughout the query.
-  SELECT ARRAY(SELECT sort_order FROM achievements ORDER BY sort_order LIMIT 10)
-  INTO v_ach_sort_orders;
-
   SELECT jsonb_build_object(
 
     'total_rollers', (
@@ -39,14 +33,13 @@ BEGIN
         '[]'::jsonb
       )
       FROM achievements a
-      WHERE a.sort_order = ANY(v_ach_sort_orders)
     ),
 
     'rollers', (
       SELECT COALESCE(jsonb_agg(row_to_json(u)), '[]'::jsonb)
       FROM (
         SELECT
-          p.id       AS user_id,
+          p.id         AS user_id,
           p.username,
           r.roll_count AS rolls,
           COALESCE(
@@ -54,9 +47,8 @@ BEGIN
               SELECT jsonb_agg(a.sort_order ORDER BY a.sort_order)
               FROM user_achievements ua
               JOIN achievements a ON a.id = ua.achievement_id
-              WHERE ua.user_id        = p.id
+              WHERE ua.user_id       = p.id
                 AND ua.completed_at IS NOT NULL
-                AND a.sort_order      = ANY(v_ach_sort_orders)
             ),
             '[]'::jsonb
           ) AS earned_sort_orders

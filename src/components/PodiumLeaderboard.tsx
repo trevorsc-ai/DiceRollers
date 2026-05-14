@@ -171,7 +171,7 @@ function PodiumStep({
   // Map sort_orders → achievement objects, preserving canonical order
   const sortSet   = new Set(m.earned_sort_orders);
   const earnedAch = achievements.filter((a) => sortSet.has(a.sort_order));
-  const emptySlots = Math.max(0, 10 - earnedAch.length);
+  const emptySlots = Math.max(0, achTotal - earnedAch.length);
 
   const initials  = m.username.slice(0, 2).toUpperCase();
   const label     = m.username.length > 9
@@ -322,7 +322,7 @@ function PodiumStep({
           justifyItems: "center",
         }}
       >
-        {earnedAch.slice(0, 10).map((a) => (
+        {earnedAch.map((a) => (
           <EmojiBadge key={a.id} ach={a} size={badgeSz} accent={c} />
         ))}
         {Array.from({ length: emptySlots }).map((_, i) => (
