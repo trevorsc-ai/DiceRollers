@@ -1,8 +1,8 @@
 interface ClubMember {
   rank: number;
   user: string;
+  cardNumber: number;
   rolls: number;
-  date: string;
   you: boolean;
 }
 
@@ -56,7 +56,7 @@ function RosterRow({ m }: { m: ClubMember }) {
         {String(m.rank).padStart(2, "0")}
       </span>
 
-      {/* Username */}
+      {/* Username + card number */}
       <span
         style={{
           flex: 1,
@@ -70,6 +70,17 @@ function RosterRow({ m }: { m: ClubMember }) {
         }}
       >
         @{m.user}
+        <span
+          style={{
+            color: isYou ? T.pink + "bb" : T.textMute,
+            marginLeft: 6,
+            fontSize: 9,
+            letterSpacing: "0.14em",
+            fontWeight: 400,
+          }}
+        >
+          CARD #{m.cardNumber}
+        </span>
         {isYou && (
           <span
             style={{
@@ -125,13 +136,13 @@ function RosterRow({ m }: { m: ClubMember }) {
 export function PunchCardClubSection({
   members,
   totalMembers,
+  totalCompletions,
 }: {
   members: ClubMember[];
   totalMembers: number;
+  totalCompletions: number;
 }) {
   if (members.length === 0) return null;
-
-  const showing = members.length;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -161,13 +172,14 @@ export function PunchCardClubSection({
         <span
           style={{
             fontFamily: "Space Mono, monospace",
-            fontSize: 10,
+            fontSize: 9,
             color: T.textDim,
-            letterSpacing: "0.14em",
+            letterSpacing: "0.12em",
             fontWeight: 700,
+            textAlign: "right",
           }}
         >
-          {totalMembers} MEMBERS
+          {totalMembers} MEMBERS · {totalCompletions} COMPLETIONS
         </span>
       </div>
 
@@ -216,29 +228,9 @@ export function PunchCardClubSection({
 
         {/* Rows */}
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
-          {members.map((m) => (
-            <RosterRow key={m.user} m={m} />
+          {members.map((m, i) => (
+            <RosterRow key={i} m={m} />
           ))}
-        </div>
-
-        {/* Footer */}
-        <div
-          style={{
-            marginTop: 10,
-            paddingTop: 8,
-            borderTop: `1px dashed ${T.border}`,
-            display: "flex",
-            justifyContent: "space-between",
-            fontFamily: "Space Mono, monospace",
-            fontSize: 9,
-            letterSpacing: "0.16em",
-            color: T.textMute,
-          }}
-        >
-          <span>
-            SHOWING 1–{showing} OF {totalMembers}
-          </span>
-          <span style={{ color: T.pink, cursor: "pointer" }}>VIEW ALL ›</span>
         </div>
       </div>
     </div>
