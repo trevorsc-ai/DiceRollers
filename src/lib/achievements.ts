@@ -236,6 +236,7 @@ export async function evaluateAchievements(
             progress: 0,
             progress_detail: null,
             times_completed: newTimesCompleted,
+            cycle_roll_count: 0,
             cycle_started_at: now,
             completed_at: null,
             earned_on_roll_id: rollId,
@@ -271,6 +272,7 @@ export async function evaluateAchievements(
             white: Array.from(whiteHit).sort((a, b) => a - b),
           },
           times_completed: timesCompleted,
+          cycle_roll_count: punchRolls!.length,
           // Keep cycle_started_at null during the first cycle so all rolls count.
           // It only gets set when a cycle completes and resets.
           cycle_started_at: cycleStartedAt,
