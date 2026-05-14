@@ -35,6 +35,8 @@ export default function HistoryPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [doublesOnly, setDoublesOnly] = useState(false);
+  const [achievementsOnly, setAchievementsOnly] = useState(false);
+  const [twinsiesOnly, setTwinsiesOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [dailyDoubleLogo, setDailyDoubleLogo] = useState<{ beer: string | null; shot: string | null }>({ beer: null, shot: null });
@@ -111,6 +113,8 @@ export default function HistoryPage() {
 
   const filtered = rolls.filter((r) => {
     if (doublesOnly && !r.is_doubles) return false;
+    if (achievementsOnly && r.achievements.length === 0) return false;
+    if (twinsiesOnly && r.twinPartners.length === 0) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!r.red_drink_name.toLowerCase().includes(q) && !r.white_drink_name.toLowerCase().includes(q)) return false;
@@ -169,6 +173,30 @@ export default function HistoryPage() {
           >
             <Filter style={{ width: 11, height: 11 }} strokeWidth={2} />
             DOUBLES ONLY
+          </button>
+          <button
+            onClick={() => setAchievementsOnly(!achievementsOnly)}
+            className="flex items-center gap-1.5 px-[11px] py-[7px] rounded-lg border font-display text-[10px] tracking-[0.16em] font-bold transition-all"
+            style={
+              achievementsOnly
+                ? { background: "rgba(255,214,0,0.20)", borderColor: "#FFD600", color: "#FFD600", boxShadow: "0 0 8px rgba(255,214,0,0.25)" }
+                : { background: "transparent", borderColor: "#252525", color: "#555" }
+            }
+          >
+            <Filter style={{ width: 11, height: 11 }} strokeWidth={2} />
+            ACHIEVEMENTS
+          </button>
+          <button
+            onClick={() => setTwinsiesOnly(!twinsiesOnly)}
+            className="flex items-center gap-1.5 px-[11px] py-[7px] rounded-lg border font-display text-[10px] tracking-[0.16em] font-bold transition-all"
+            style={
+              twinsiesOnly
+                ? { background: "rgba(255,214,0,0.20)", borderColor: "#FFD600", color: "#FFD600", boxShadow: "0 0 8px rgba(255,214,0,0.25)" }
+                : { background: "transparent", borderColor: "#252525", color: "#555" }
+            }
+          >
+            <Filter style={{ width: 11, height: 11 }} strokeWidth={2} />
+            TWINSIES
           </button>
           <input
             type="date"
