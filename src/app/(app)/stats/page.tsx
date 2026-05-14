@@ -250,7 +250,10 @@ export default function StatsPage() {
   const dayFreq = DAYS.map((day, i) => ({
     label: day,
     count: mode === "personal"
-      ? rolls.filter((r) => new Date(r.roll_time).getDay() === i).length
+      ? rolls.filter((r) => {
+          const [y, m, d] = r.roll_date.split("-").map(Number);
+          return new Date(y, m - 1, d).getDay() === i;
+        }).length
       : (globalStats?.day_of_week?.find((d) => d.day_num === i)?.count ?? 0),
   }));
 
