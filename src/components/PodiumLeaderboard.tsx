@@ -147,7 +147,7 @@ function EmojiStamp({
 
 const PILLAR_HEIGHT: Record<number, number> = { 1: 90, 2: 64, 3: 48 };
 const AVATAR_SIZE: Record<number, number>   = { 1: 50, 2: 42, 3: 42 };
-const BADGE_SIZE: Record<number, number>    = { 1: 22, 2: 20, 3: 20 };
+const BADGE_SIZE: Record<number, number>    = { 1: 21, 2: 19, 3: 19 };
 const ROLL_FONT: Record<number, number>     = { 1: 30, 2: 22, 3: 22 };
 const INIT_FONT: Record<number, number>     = { 1: 16, 2: 13, 3: 13 };
 
@@ -318,7 +318,7 @@ function PodiumStep({
           borderRadius: "0 0 10px 10px",
           padding: "8px 6px 9px",
           display: "grid",
-          gridTemplateColumns: "repeat(5, 1fr)",
+          gridTemplateColumns: "repeat(4, 1fr)",
           gap: 5,
           justifyItems: "center",
         }}
