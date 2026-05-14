@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Search, Filter } from "lucide-react";
+import { formatPartners } from "@/lib/twinsies";
 
 interface EarnedAchievement {
   name: string;
@@ -24,6 +25,7 @@ interface Roll {
   is_doubles: boolean;
   is_daily_double: boolean;
   achievements: EarnedAchievement[];
+  twinPartners: string[];
   rollNumber: number;
 }
 
@@ -60,11 +62,17 @@ export default function HistoryPage() {
 
       if (data) {
         const rollIds = data.map((r: { id: number }) => r.id);
-        const { data: achievementData } = await supabase
-          .from("user_achievements")
-          .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
-          .in("earned_on_roll_id", rollIds)
-          .not("completed_at", "is", null);
+        const [{ data: achievementData }, { data: twinData }] = await Promise.all([
+          supabase
+            .from("user_achievements")
+            .select("earned_on_roll_id, achievements(id, name, emoji, category_emoji, category_name)")
+            .in("earned_on_roll_id", rollIds)
+            .not("completed_at", "is", null),
+          supabase
+            .from("rolls_with_twins")
+            .select("id, twin_partners")
+            .in("id", rollIds),
+        ]);
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
@@ -72,6 +80,8 @@ export default function HistoryPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const a = (ua as any).achievements;
           if (!a || !ua.earned_on_roll_id) continue;
+          // Twinsies has its own dedicated partner badge; suppress the generic pill.
+          if (a.id === "twinsies") continue;
           if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
           achievementsByRoll[ua.earned_on_roll_id].push({
             name: a.name, emoji: a.emoji,
@@ -79,10 +89,18 @@ export default function HistoryPage() {
           });
         }
 
+        const twinsByRoll: Record<number, string[]> = {};
+        for (const row of (twinData ?? []) as Array<{ id: number; twin_partners: string[] | null }>) {
+          if (row.twin_partners && row.twin_partners.length > 0) {
+            twinsByRoll[row.id] = row.twin_partners;
+          }
+        }
+
         const total = data.length;
         setRolls(data.map((r: Roll, i: number) => ({
           ...r,
           achievements: achievementsByRoll[r.id] ?? [],
+          twinPartners: twinsByRoll[r.id] ?? [],
           rollNumber: total - i,
         })));
       }
@@ -230,6 +248,22 @@ function RollCard({ roll, dailyDoubleLogo }: { roll: Roll; dailyDoubleLogo: { be
         <span className="text-text-muted text-sm shrink-0">+</span>
         <DrinkItem name={roll.white_drink_name} logo={whiteLogo} dieNum={roll.white_die_number} color="white" />
       </div>
+
+      {/* Twinsies indicator */}
+      {roll.twinPartners.length > 0 && (
+        <div className="mt-2.5">
+          <span
+            className="inline-flex items-center gap-1 font-display text-[10px] tracking-[0.08em] px-2 py-1 rounded-full border"
+            style={{
+              color: "#FFD600",
+              borderColor: "rgba(255,214,0,0.4)",
+              background: "rgba(255,214,0,0.10)",
+            }}
+          >
+            👯 TWINSIES with {formatPartners(roll.twinPartners)}
+          </span>
+        </div>
+      )}
 
       {/* Achievement pills */}
       {roll.achievements.length > 0 && (

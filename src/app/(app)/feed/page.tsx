@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import UserProfileModal from "@/components/UserProfileModal";
 import { Dice6 } from "lucide-react";
+import { formatPartners } from "@/lib/twinsies";
+
+const PAGE_SIZE = 50;
 
 interface EarnedAchievement {
   name: string;
@@ -28,21 +31,148 @@ interface FeedRoll {
   likeCount: number;
   likedByMe: boolean;
   achievements: EarnedAchievement[];
+  twinPartners: string[];
 }
 
 export default function FeedPage() {
   const supabase = createClient();
   const [rolls, setRolls] = useState<FeedRoll[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [dailyDoubleLogo, setDailyDoubleLogo] = useState<{ beer: string | null; shot: string | null }>({ beer: null, shot: null });
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setMyUserId(user.id);
+  // Tracks the roll_time of the last roll in `rolls` for keyset pagination.
+  // Refs keep loadPage stable across re-renders so the observer doesn't churn.
+  const lastTimeRef = useRef<string | null>(null);
+  const hasMoreRef = useRef(true);
+  const inFlightRef = useRef(false);
 
+  const loadPage = useCallback(async () => {
+    if (inFlightRef.current || !hasMoreRef.current) return;
+    inFlightRef.current = true;
+    const isFirstPage = lastTimeRef.current === null;
+    if (!isFirstPage) setLoadingMore(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (isFirstPage && user) setMyUserId(user.id);
+
+    let query = supabase
+      .from("rolls")
+      .select(`
+        id, roll_time, red_die_number, white_die_number,
+        red_drink_name, white_drink_name, red_drink_logo, white_drink_logo,
+        is_doubles, is_daily_double, user_id,
+        profiles!inner(username),
+        roll_likes(user_id)
+      `)
+      .order("roll_time", { ascending: false })
+      .limit(PAGE_SIZE);
+    if (lastTimeRef.current) query = query.lt("roll_time", lastTimeRef.current);
+    const { data: rollData } = await query;
+
+    if (!rollData || rollData.length === 0) {
+      hasMoreRef.current = false;
+      setHasMore(false);
+      if (isFirstPage) setLoading(false);
+      setLoadingMore(false);
+      inFlightRef.current = false;
+      return;
+    }
+
+    const rollIds = rollData.map((r: { id: number }) => r.id);
+    const [
+      { data: achievementData },
+      { data: punchCardData },
+      { data: twinData },
+    ] = await Promise.all([
+      supabase
+        .from("user_achievements")
+        .select("earned_on_roll_id, achievements(id, name, emoji, category_emoji, category_name)")
+        .in("earned_on_roll_id", rollIds)
+        .not("completed_at", "is", null),
+      supabase
+        .from("punch_card_completions")
+        .select("earned_on_roll_id, completion_number")
+        .in("earned_on_roll_id", rollIds),
+      supabase
+        .from("rolls_with_twins")
+        .select("id, twin_partners")
+        .in("id", rollIds),
+    ]);
+
+    const twinsByRoll: Record<number, string[]> = {};
+    for (const row of (twinData ?? []) as Array<{ id: number; twin_partners: string[] | null }>) {
+      if (row.twin_partners && row.twin_partners.length > 0) {
+        twinsByRoll[row.id] = row.twin_partners;
+      }
+    }
+
+    const PUNCH_CARD_KEYCAP: Record<number, string> = {
+      2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
+      6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣", 10: "🔟",
+    };
+
+    const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
+    for (const ua of achievementData ?? []) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const a = (ua as any).achievements;
+      if (!a || !ua.earned_on_roll_id) continue;
+      // Twinsies has its own dedicated partner badge; suppress the generic pill.
+      if (a.id === "twinsies") continue;
+      if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
+      achievementsByRoll[ua.earned_on_roll_id].push({
+        name: a.name, emoji: a.emoji,
+        category_emoji: a.category_emoji, category_name: a.category_name,
+      });
+    }
+    for (const pc of punchCardData ?? []) {
+      if (!pc.earned_on_roll_id) continue;
+      const n = pc.completion_number;
+      const emoji = n <= 1 ? "🎟️" : (PUNCH_CARD_KEYCAP[n] ?? `${n}`) + "🎟️";
+      if (!achievementsByRoll[pc.earned_on_roll_id]) achievementsByRoll[pc.earned_on_roll_id] = [];
+      achievementsByRoll[pc.earned_on_roll_id].push({
+        name: "The Punch Card", emoji,
+        category_emoji: "💎", category_name: "You're a Regular",
+      });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mapped: FeedRoll[] = rollData.map((r: any) => ({
+      id: r.id,
+      roll_time: r.roll_time,
+      red_die_number: r.red_die_number,
+      white_die_number: r.white_die_number,
+      red_drink_name: r.red_drink_name,
+      white_drink_name: r.white_drink_name,
+      red_drink_logo: r.red_drink_logo,
+      white_drink_logo: r.white_drink_logo,
+      is_doubles: r.is_doubles,
+      is_daily_double: r.is_daily_double ?? false,
+      user_id: r.user_id,
+      username: r.profiles?.username ?? "anonymous",
+      likeCount: r.roll_likes?.length ?? 0,
+      likedByMe: r.roll_likes?.some((l: { user_id: string }) => l.user_id === user?.id) ?? false,
+      achievements: achievementsByRoll[r.id] ?? [],
+      twinPartners: twinsByRoll[r.id] ?? [],
+    }));
+
+    setRolls((prev) => (isFirstPage ? mapped : [...prev, ...mapped]));
+    lastTimeRef.current = mapped[mapped.length - 1].roll_time;
+    if (rollData.length < PAGE_SIZE) {
+      hasMoreRef.current = false;
+      setHasMore(false);
+    }
+    if (isFirstPage) setLoading(false);
+    setLoadingMore(false);
+    inFlightRef.current = false;
+  }, [supabase]);
+
+  // Initial load: daily-double logos + first page of rolls
+  useEffect(() => {
+    async function loadOnce() {
       const { data: ddItems } = await supabase
         .from("menu_items")
         .select("die_number, logo_url")
@@ -52,85 +182,29 @@ export default function FeedPage() {
         const shot = ddItems.find((i) => i.die_number === 2)?.logo_url ?? null;
         setDailyDoubleLogo({ beer, shot });
       }
-
-      const { data: rollData } = await supabase
-        .from("rolls")
-        .select(`
-          id, roll_time, red_die_number, white_die_number,
-          red_drink_name, white_drink_name, red_drink_logo, white_drink_logo,
-          is_doubles, is_daily_double, user_id,
-          profiles!inner(username),
-          roll_likes(user_id)
-        `)
-        .order("roll_time", { ascending: false })
-        .limit(50);
-
-      if (rollData) {
-        const rollIds = rollData.map((r: { id: number }) => r.id);
-        const [{ data: achievementData }, { data: punchCardData }] = await Promise.all([
-          supabase
-            .from("user_achievements")
-            .select("earned_on_roll_id, achievements(name, emoji, category_emoji, category_name)")
-            .in("earned_on_roll_id", rollIds)
-            .not("completed_at", "is", null),
-          supabase
-            .from("punch_card_completions")
-            .select("earned_on_roll_id, completion_number")
-            .in("earned_on_roll_id", rollIds),
-        ]);
-
-        const PUNCH_CARD_KEYCAP: Record<number, string> = {
-          2: "2️⃣", 3: "3️⃣", 4: "4️⃣", 5: "5️⃣",
-          6: "6️⃣", 7: "7️⃣", 8: "8️⃣", 9: "9️⃣", 10: "🔟",
-        };
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
-        for (const ua of achievementData ?? []) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const a = (ua as any).achievements;
-          if (!a || !ua.earned_on_roll_id) continue;
-          if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
-          achievementsByRoll[ua.earned_on_roll_id].push({
-            name: a.name, emoji: a.emoji,
-            category_emoji: a.category_emoji, category_name: a.category_name,
-          });
-        }
-        for (const pc of punchCardData ?? []) {
-          if (!pc.earned_on_roll_id) continue;
-          const n = pc.completion_number;
-          const emoji = n <= 1 ? "🎟️" : (PUNCH_CARD_KEYCAP[n] ?? `${n}`) + "🎟️";
-          if (!achievementsByRoll[pc.earned_on_roll_id]) achievementsByRoll[pc.earned_on_roll_id] = [];
-          achievementsByRoll[pc.earned_on_roll_id].push({
-            name: "The Punch Card", emoji,
-            category_emoji: "💎", category_name: "You're a Regular",
-          });
-        }
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const mapped: FeedRoll[] = rollData.map((r: any) => ({
-          id: r.id,
-          roll_time: r.roll_time,
-          red_die_number: r.red_die_number,
-          white_die_number: r.white_die_number,
-          red_drink_name: r.red_drink_name,
-          white_drink_name: r.white_drink_name,
-          red_drink_logo: r.red_drink_logo,
-          white_drink_logo: r.white_drink_logo,
-          is_doubles: r.is_doubles,
-          is_daily_double: r.is_daily_double ?? false,
-          user_id: r.user_id,
-          username: r.profiles?.username ?? "anonymous",
-          likeCount: r.roll_likes?.length ?? 0,
-          likedByMe: r.roll_likes?.some((l: { user_id: string }) => l.user_id === user?.id) ?? false,
-          achievements: achievementsByRoll[r.id] ?? [],
-        }));
-        setRolls(mapped);
-      }
-      setLoading(false);
+      await loadPage();
     }
-    load();
-  }, [supabase]);
+    loadOnce();
+  }, [supabase, loadPage]);
+
+  // IntersectionObserver sentinel: when the bottom sentinel scrolls into
+  // view, kick off the next page. The observer ref is set by the <div>
+  // ref callback below.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          loadPage();
+        }
+      },
+      { rootMargin: "200px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadPage, hasMore, loading]);
 
   async function toggleLike(rollId: number, likedByMe: boolean) {
     if (!myUserId) return;
@@ -183,6 +257,17 @@ export default function FeedPage() {
                 onUserClick={setSelectedUser}
               />
             ))}
+            <div ref={sentinelRef} className="h-1" aria-hidden />
+            {loadingMore && (
+              <div className="text-center text-text-secondary py-4 font-display text-[11px] tracking-[0.18em]">
+                LOADING MORE…
+              </div>
+            )}
+            {!hasMore && !loadingMore && rolls.length > 0 && (
+              <div className="text-center text-text-muted py-6 font-display text-[10px] tracking-[0.22em]">
+                · END OF THE LINE ·
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -261,6 +346,22 @@ function FeedCard({
         <span className="text-text-muted text-sm shrink-0">+</span>
         <MiniDrink name={roll.white_drink_name} logo={whiteLogo} dieNum={roll.white_die_number} color="white" />
       </div>
+
+      {/* Twinsies indicator */}
+      {roll.twinPartners.length > 0 && (
+        <div className="mb-2.5">
+          <span
+            className="inline-flex items-center gap-1 font-display text-[10px] tracking-[0.08em] px-2 py-1 rounded-full border"
+            style={{
+              color: "#FFD600",
+              borderColor: "rgba(255,214,0,0.4)",
+              background: "rgba(255,214,0,0.10)",
+            }}
+          >
+            👯 TWINSIES with {formatPartners(roll.twinPartners)}
+          </span>
+        </div>
+      )}
 
       {/* Achievement pills */}
       {roll.achievements.length > 0 && (

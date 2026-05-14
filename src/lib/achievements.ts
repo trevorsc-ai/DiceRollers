@@ -1,5 +1,6 @@
 import { SupabaseClient } from "@supabase/supabase-js";
 import { getNYHour } from "./dateUtils";
+import { twinEventKey, type TwinsiesEvent } from "./twinsies";
 
 /** Parse a roll_date string ("YYYY-MM-DD") into components. */
 function getNYDate(rollDate: string): { year: number; month: number; day: number; dow: number } {
@@ -43,6 +44,10 @@ export interface AchievementInfo {
   description: string;
   category_name: string;
   category_emoji: string;
+  // Twinsies-only: the partner usernames for the unlocking event
+  twinPartners?: string[];
+  // Twinsies-only: running total after this event was credited
+  twinCount?: number;
 }
 
 interface RollRecord {
@@ -312,6 +317,86 @@ export async function evaluateAchievements(
     await updateCounter("around_the_world", uniqueCombos.size, 64, {
       combos: Array.from(uniqueCombos),
     });
+  }
+
+  // Twinsies: same exact combo as another user on the same night.
+  // Repeatable: target=1 so it "completes" on first twin, but progress
+  // keeps incrementing on every subsequent twin event. Modal pops every time.
+  {
+    const eventKey = twinEventKey(roll.roll_date, roll.red_die_number, roll.white_die_number);
+
+    const { data: matchingRolls } = await adminSupabase
+      .from("rolls")
+      .select("user_id, profiles!inner(username)")
+      .eq("roll_date", roll.roll_date)
+      .eq("red_die_number", roll.red_die_number)
+      .eq("white_die_number", roll.white_die_number)
+      .neq("user_id", userId);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const partnerUsernames = Array.from(
+      new Set(
+        (matchingRolls || [])
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .map((r: any) => r.profiles?.username as string | undefined)
+          .filter((u): u is string => typeof u === "string")
+      )
+    ).sort();
+
+    if (partnerUsernames.length > 0) {
+      const twinsRow = (existing || []).find((ua) => ua.achievement_id === "twinsies");
+      const detail = (twinsRow?.progress_detail ?? {}) as { credited_events?: TwinsiesEvent[] };
+      const credited = detail.credited_events ?? [];
+
+      if (!credited.some((e) => e.key === eventKey)) {
+        const newEvent: TwinsiesEvent = {
+          key: eventKey,
+          roll_date: roll.roll_date,
+          red: roll.red_die_number,
+          white: roll.white_die_number,
+          partners: partnerUsernames,
+          roll_id: rollId,
+        };
+        const nextEvents = [...credited, newEvent];
+        const nextProgress = nextEvents.length;
+        const now = new Date().toISOString();
+
+        if (twinsRow) {
+          // Existing row: increment progress + append event. Preserve completed_at
+          // and earned_on_roll_id from the first unlock.
+          await adminSupabase
+            .from("user_achievements")
+            .update({
+              progress: nextProgress,
+              progress_detail: { credited_events: nextEvents },
+              completed_at: twinsRow.completed_at ?? now,
+              updated_at: now,
+            })
+            .eq("user_id", userId)
+            .eq("achievement_id", "twinsies");
+        } else {
+          // First-ever twin for this user: insert fresh row.
+          await adminSupabase.from("user_achievements").insert({
+            user_id: userId,
+            achievement_id: "twinsies",
+            progress: nextProgress,
+            progress_detail: { credited_events: nextEvents },
+            completed_at: now,
+            earned_on_roll_id: rollId,
+            updated_at: now,
+          });
+        }
+
+        const info = await fetchAchievementInfo("twinsies");
+        if (info) {
+          newlyCompleted.push({
+            ...info,
+            twinPartners: partnerUsernames,
+            twinCount: nextProgress,
+          });
+        }
+      }
+    }
   }
 
   // ── THE CRAPS TABLE ─────────────────────────────────────────────────
