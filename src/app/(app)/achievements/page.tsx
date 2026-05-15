@@ -163,11 +163,7 @@ export default function AchievementsPage() {
     category: cat,
     items: filteredAchievements
       .filter((a) => a.category === cat)
-      .sort((a, b) => {
-        const ra = rarityMap.get(a.id) ?? 0;
-        const rb = rarityMap.get(b.id) ?? 0;
-        return ra !== rb ? ra - rb : a.sort_order - b.sort_order;
-      }),
+      .sort((a, b) => a.sort_order - b.sort_order),
   })).filter((g) => g.items.length > 0);
 
   if (loading) {
