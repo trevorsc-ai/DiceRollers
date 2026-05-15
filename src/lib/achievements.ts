@@ -427,11 +427,6 @@ export async function evaluateAchievements(
     await markComplete("snake_eyes");
   }
 
-  // SIXES!!: double 6s
-  if (!completed.has("sixes") && roll.is_doubles && roll.red_die_number === 6) {
-    await markComplete("sixes");
-  }
-
   // Boxcars: double 8s
   if (!completed.has("boxcars") && roll.is_doubles && roll.red_die_number === 8) {
     await markComplete("boxcars");
