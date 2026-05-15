@@ -43,6 +43,7 @@ export default function RollPage() {
   }).toUpperCase();
 
   const isDoubles = redDie !== null && whiteDie !== null && redDie === whiteDie;
+  const isDouble6s = isDoubles && redDie === 6;
   const isMalort = whiteDie === 6;
 
   const getMenuItem = useCallback(
@@ -85,9 +86,9 @@ export default function RollPage() {
 
   async function handleSave() {
     if (redDie === null || whiteDie === null || !userId) return;
-    if (isDoubles && dailyDoubleChoice === null) return;
+    if (isDoubles && !isDouble6s && dailyDoubleChoice === null) return;
 
-    const takingDailyDouble = isDoubles && dailyDoubleChoice === true;
+    const takingDailyDouble = isDoubles && !isDouble6s && dailyDoubleChoice === true;
     const redDrink = takingDailyDouble ? dailyDoubleBeer : regularRedDrink;
     const whiteDrink = takingDailyDouble ? dailyDoubleShot : regularWhiteDrink;
     if (!redDrink || !whiteDrink) return;
@@ -136,7 +137,7 @@ export default function RollPage() {
     redDie !== null &&
     whiteDie !== null &&
     !saving &&
-    (!isDoubles || dailyDoubleChoice !== null);
+    (!isDoubles || isDouble6s || dailyDoubleChoice !== null);
 
   return (
     <div className="min-h-screen bg-background">
@@ -198,37 +199,43 @@ export default function RollPage() {
                 <p className="font-display text-base tracking-[0.20em] text-center mb-3 neon-text-gold">
                   🎲 DOUBLES! 🎲
                 </p>
-                {dailyDoubleBeer && dailyDoubleShot && (
-                  <div className="space-y-2">
-                    <p className="text-text-secondary text-xs text-center">
-                      Take the Daily Double instead?
-                    </p>
-                    <p className="text-neon-gold text-xs text-center">
-                      {dailyDoubleBeer.name} + {dailyDoubleShot.name}
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => setDailyDoubleChoice(true)}
-                        className={`flex-1 py-2.5 rounded-[18px] font-display text-sm tracking-widest border transition-all ${
-                          dailyDoubleChoice === true
-                            ? "bg-neon-gold text-background border-neon-gold"
-                            : "border-neon-gold/40 text-neon-gold hover:border-neon-gold"
-                        }`}
-                      >
-                        YES — DAILY DOUBLE
-                      </button>
-                      <button
-                        onClick={() => setDailyDoubleChoice(false)}
-                        className={`flex-1 py-2.5 rounded-[18px] font-display text-sm tracking-widest border transition-all ${
-                          dailyDoubleChoice === false
-                            ? "bg-surface-2 text-text-primary border-surface-2"
-                            : "border-surface-2 text-text-secondary hover:text-text-primary"
-                        }`}
-                      >
-                        NO — KEEP IT
-                      </button>
+                {isDouble6s ? (
+                  <p className="text-text-secondary text-xs text-center">
+                    Double 6s means Mickeys + Malort — no Daily Double for you!
+                  </p>
+                ) : (
+                  dailyDoubleBeer && dailyDoubleShot && (
+                    <div className="space-y-2">
+                      <p className="text-text-secondary text-xs text-center">
+                        Take the Daily Double instead?
+                      </p>
+                      <p className="text-neon-gold text-xs text-center">
+                        {dailyDoubleBeer.name} + {dailyDoubleShot.name}
+                      </p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => setDailyDoubleChoice(true)}
+                          className={`flex-1 py-2.5 rounded-[18px] font-display text-sm tracking-widest border transition-all ${
+                            dailyDoubleChoice === true
+                              ? "bg-neon-gold text-background border-neon-gold"
+                              : "border-neon-gold/40 text-neon-gold hover:border-neon-gold"
+                          }`}
+                        >
+                          YES — DAILY DOUBLE
+                        </button>
+                        <button
+                          onClick={() => setDailyDoubleChoice(false)}
+                          className={`flex-1 py-2.5 rounded-[18px] font-display text-sm tracking-widest border transition-all ${
+                            dailyDoubleChoice === false
+                              ? "bg-surface-2 text-text-primary border-surface-2"
+                              : "border-surface-2 text-text-secondary hover:text-text-primary"
+                          }`}
+                        >
+                          NO — KEEP IT
+                        </button>
+                      </div>
                     </div>
-                  </div>
+                  )
                 )}
               </div>
             )}

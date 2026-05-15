@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       white_drink_name: whiteDrinkName,
       red_drink_logo: redDrinkLogo ?? null,
       white_drink_logo: whiteDrinkLogo ?? null,
-      is_daily_double: dailyDouble ?? false,
+      is_daily_double: (redDieNumber === 6 && whiteDieNumber === 6) ? false : (dailyDouble ?? false),
     })
     .select()
     .single();
