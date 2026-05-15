@@ -718,8 +718,12 @@ export async function evaluateAchievements(
     if (!completed.has("halloween") && month === 10 && day === 31) {
       await markComplete("halloween");
     }
-    if (!completed.has("christmas") && month === 12 && day === 25) {
-      await markComplete("christmas");
+    if (!completed.has("christmas")) {
+      const christmasDow = new Date(year, 11, 25).getDay();
+      const weekStartDay = 25 - christmasDow;
+      if (month === 12 && day >= weekStartDay && day <= weekStartDay + 6) {
+        await markComplete("christmas");
+      }
     }
     if (!completed.has("new_years_eve") && month === 12 && day === 31) {
       await markComplete("new_years_eve");
@@ -741,7 +745,10 @@ export async function evaluateAchievements(
     // Thanksgiving (variable)
     if (!completed.has("thanksgiving")) {
       const tday = getThanksgivingDate(year);
-      if (month === tday.month && day === tday.day) {
+      // Thanksgiving is always Thursday (dow=4); week runs Sun–Sat
+      const weekStartDay = tday.day - 4;
+      const weekEndDay = tday.day + 2;
+      if (month === tday.month && day >= weekStartDay && day <= weekEndDay) {
         await markComplete("thanksgiving");
       }
     }
