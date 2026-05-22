@@ -461,6 +461,25 @@ export async function evaluateAchievements(
     }
   }
 
+  // Stuck in the Matrix: same combo three times in one night
+  if (!completed.has("stuck_in_the_matrix")) {
+    const { data: nightRolls } = await adminSupabase
+      .from("rolls")
+      .select("red_die_number, white_die_number")
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date);
+    if (nightRolls && nightRolls.length >= 3) {
+      const counts = new Map<string, number>();
+      for (const r of nightRolls) {
+        const key = `${r.red_die_number}-${r.white_die_number}`;
+        counts.set(key, (counts.get(key) ?? 0) + 1);
+      }
+      if ([...counts.values()].some((c) => c >= 3)) {
+        await markComplete("stuck_in_the_matrix");
+      }
+    }
+  }
+
   // Mark of the Devil: 3+ total 6s shown across both dies in one night.
   // Double-six = 2, single-six = 1.
   if (
