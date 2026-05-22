@@ -5,15 +5,14 @@ import { createClient } from "@/lib/supabase/client";
 import UserProfileModal from "@/components/UserProfileModal";
 import { Dice6 } from "lucide-react";
 import { formatPartners } from "@/lib/twinsies";
+import {
+  loadAchievementsForRolls,
+  loadTwinsForRolls,
+  type EarnedAchievement,
+} from "@/lib/rollAchievements";
+import { useDailyDoubleLogos, type DailyDoubleLogos } from "@/hooks/useDailyDoubleLogos";
 
 const PAGE_SIZE = 50;
-
-interface EarnedAchievement {
-  name: string;
-  emoji: string;
-  category_emoji: string;
-  category_name: string;
-}
 
 interface FeedRoll {
   id: number;
@@ -41,7 +40,7 @@ export default function FeedPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [myUserId, setMyUserId] = useState<string | null>(null);
-  const [dailyDoubleLogo, setDailyDoubleLogo] = useState<{ beer: string | null; shot: string | null }>({ beer: null, shot: null });
+  const dailyDoubleLogo = useDailyDoubleLogos();
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
 
   // Tracks the roll_time of the last roll in `rolls` for keyset pagination.
@@ -83,55 +82,10 @@ export default function FeedPage() {
     }
 
     const rollIds = rollData.map((r: { id: number }) => r.id);
-    const [
-      { data: achievementData },
-      { data: punchCardData },
-      { data: twinData },
-    ] = await Promise.all([
-      supabase
-        .from("user_achievements")
-        .select("earned_on_roll_id, achievements(id, name, emoji, category_emoji, category_name)")
-        .in("earned_on_roll_id", rollIds)
-        .not("completed_at", "is", null),
-      supabase
-        .from("punch_card_completions")
-        .select("earned_on_roll_id, completion_number")
-        .in("earned_on_roll_id", rollIds),
-      supabase
-        .from("rolls_with_twins")
-        .select("id, twin_partners")
-        .in("id", rollIds),
+    const [achievementsByRoll, twinsByRoll] = await Promise.all([
+      loadAchievementsForRolls(supabase, rollIds),
+      loadTwinsForRolls(supabase, rollIds),
     ]);
-
-    const twinsByRoll: Record<number, string[]> = {};
-    for (const row of (twinData ?? []) as Array<{ id: number; twin_partners: string[] | null }>) {
-      if (row.twin_partners && row.twin_partners.length > 0) {
-        twinsByRoll[row.id] = row.twin_partners;
-      }
-    }
-
-    const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
-    for (const ua of achievementData ?? []) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const a = (ua as any).achievements;
-      if (!a || !ua.earned_on_roll_id) continue;
-      // Twinsies has its own dedicated partner badge; suppress the generic pill.
-      if (a.id === "twinsies") continue;
-      if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
-      achievementsByRoll[ua.earned_on_roll_id].push({
-        name: a.name, emoji: a.emoji,
-        category_emoji: a.category_emoji, category_name: a.category_name,
-      });
-    }
-    for (const pc of punchCardData ?? []) {
-      if (!pc.earned_on_roll_id) continue;
-      const emoji = "👊";
-      if (!achievementsByRoll[pc.earned_on_roll_id]) achievementsByRoll[pc.earned_on_roll_id] = [];
-      achievementsByRoll[pc.earned_on_roll_id].push({
-        name: "The Punch Card", emoji,
-        category_emoji: "💎", category_name: "You're a Regular",
-      });
-    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const mapped: FeedRoll[] = rollData.map((r: any) => ({
@@ -164,22 +118,9 @@ export default function FeedPage() {
     inFlightRef.current = false;
   }, [supabase]);
 
-  // Initial load: daily-double logos + first page of rolls
   useEffect(() => {
-    async function loadOnce() {
-      const { data: ddItems } = await supabase
-        .from("menu_items")
-        .select("die_number, logo_url")
-        .eq("die_color", "daily_double");
-      if (ddItems) {
-        const beer = ddItems.find((i) => i.die_number === 1)?.logo_url ?? null;
-        const shot = ddItems.find((i) => i.die_number === 2)?.logo_url ?? null;
-        setDailyDoubleLogo({ beer, shot });
-      }
-      await loadPage();
-    }
-    loadOnce();
-  }, [supabase, loadPage]);
+    loadPage();
+  }, [loadPage]);
 
   // IntersectionObserver sentinel: when the bottom sentinel scrolls into
   // view, kick off the next page. The observer ref is set by the <div>
@@ -279,7 +220,7 @@ function FeedCard({
   roll: FeedRoll;
   myUserId: string | null;
   onToggleLike: (id: number, likedByMe: boolean) => void;
-  dailyDoubleLogo: { beer: string | null; shot: string | null };
+  dailyDoubleLogo: DailyDoubleLogos;
   onUserClick: (username: string) => void;
 }) {
   const [bouncing, setBouncing] = useState(false);

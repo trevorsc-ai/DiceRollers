@@ -1,16 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { Search, Filter } from "lucide-react";
 import { formatPartners } from "@/lib/twinsies";
+import {
+  loadAchievementsForRolls,
+  loadTwinsForRolls,
+  type EarnedAchievement,
+} from "@/lib/rollAchievements";
+import { useDailyDoubleLogos, type DailyDoubleLogos } from "@/hooks/useDailyDoubleLogos";
 
-interface EarnedAchievement {
-  name: string;
-  emoji: string;
-  category_emoji: string;
-  category_name: string;
-}
+const PAGE_SIZE = 50;
+const SEARCH_DEBOUNCE_MS = 250;
 
 interface Roll {
   id: number;
@@ -29,100 +31,173 @@ interface Roll {
   rollNumber: number;
 }
 
+// Supabase's .or() filter syntax uses ',' '(' ')' as separators and '%' '_'
+// as LIKE wildcards. Strip them so a search box can't break the query.
+function sanitizeSearch(q: string): string {
+  return q.replace(/[,()"\\%_]/g, "").trim();
+}
+
 export default function HistoryPage() {
   const supabase = createClient();
+  const dailyDoubleLogo = useDailyDoubleLogos();
+
   const [rolls, setRolls] = useState<Roll[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [totalRolls, setTotalRolls] = useState<number | null>(null);
+
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [doublesOnly, setDoublesOnly] = useState(false);
   const [achievementsOnly, setAchievementsOnly] = useState(false);
   const [twinsiesOnly, setTwinsiesOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [dailyDoubleLogo, setDailyDoubleLogo] = useState<{ beer: string | null; shot: string | null }>({ beer: null, shot: null });
 
+  // Keyset pagination refs (stable across re-renders so the observer
+  // doesn't churn). Mirrors src/app/(app)/feed/page.tsx.
+  const lastTimeRef = useRef<string | null>(null);
+  const hasMoreRef = useRef(true);
+  const inFlightRef = useRef(false);
+  const userIdRef = useRef<string | null>(null);
+
+  // Debounce the search box so each keystroke doesn't refetch.
   useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+    const t = setTimeout(() => setDebouncedSearch(search), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [search]);
 
-      const { data: ddItems } = await supabase
-        .from("menu_items")
-        .select("die_number, logo_url")
-        .eq("die_color", "daily_double");
-      if (ddItems) {
-        const beer = ddItems.find((i) => i.die_number === 1)?.logo_url ?? null;
-        const shot = ddItems.find((i) => i.die_number === 2)?.logo_url ?? null;
-        setDailyDoubleLogo({ beer, shot });
+  const loadPage = useCallback(async () => {
+    if (inFlightRef.current || !hasMoreRef.current) return;
+    if (!userIdRef.current) return;
+    inFlightRef.current = true;
+    const isFirstPage = lastTimeRef.current === null;
+    if (!isFirstPage) setLoadingMore(true);
+
+    const q = sanitizeSearch(debouncedSearch);
+
+    let query = supabase
+      .from("rolls_with_flags")
+      .select("*")
+      .eq("user_id", userIdRef.current)
+      .order("roll_time", { ascending: false })
+      .limit(PAGE_SIZE);
+
+    if (lastTimeRef.current) query = query.lt("roll_time", lastTimeRef.current);
+    if (doublesOnly) query = query.eq("is_doubles", true);
+    if (achievementsOnly) query = query.eq("has_achievement", true);
+    if (twinsiesOnly) query = query.eq("has_twin", true);
+    if (dateFrom) query = query.gte("roll_date", dateFrom);
+    if (dateTo) query = query.lte("roll_date", dateTo);
+    if (q) query = query.or(`red_drink_name.ilike.%${q}%,white_drink_name.ilike.%${q}%`);
+
+    const { data: rollData } = await query;
+
+    if (!rollData || rollData.length === 0) {
+      hasMoreRef.current = false;
+      setHasMore(false);
+      if (isFirstPage) {
+        setRolls([]);
+        setLoading(false);
       }
-
-      const { data } = await supabase
-        .from("rolls")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("roll_time", { ascending: false });
-
-      if (data) {
-        const rollIds = data.map((r: { id: number }) => r.id);
-        const [{ data: achievementData }, { data: twinData }] = await Promise.all([
-          supabase
-            .from("user_achievements")
-            .select("earned_on_roll_id, achievements(id, name, emoji, category_emoji, category_name)")
-            .in("earned_on_roll_id", rollIds)
-            .not("completed_at", "is", null),
-          supabase
-            .from("rolls_with_twins")
-            .select("id, twin_partners")
-            .in("id", rollIds),
-        ]);
-
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const achievementsByRoll: Record<number, EarnedAchievement[]> = {};
-        for (const ua of achievementData ?? []) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const a = (ua as any).achievements;
-          if (!a || !ua.earned_on_roll_id) continue;
-          // Twinsies has its own dedicated partner badge; suppress the generic pill.
-          if (a.id === "twinsies") continue;
-          if (!achievementsByRoll[ua.earned_on_roll_id]) achievementsByRoll[ua.earned_on_roll_id] = [];
-          achievementsByRoll[ua.earned_on_roll_id].push({
-            name: a.name, emoji: a.emoji,
-            category_emoji: a.category_emoji, category_name: a.category_name,
-          });
-        }
-
-        const twinsByRoll: Record<number, string[]> = {};
-        for (const row of (twinData ?? []) as Array<{ id: number; twin_partners: string[] | null }>) {
-          if (row.twin_partners && row.twin_partners.length > 0) {
-            twinsByRoll[row.id] = row.twin_partners;
-          }
-        }
-
-        const total = data.length;
-        setRolls(data.map((r: Roll, i: number) => ({
-          ...r,
-          achievements: achievementsByRoll[r.id] ?? [],
-          twinPartners: twinsByRoll[r.id] ?? [],
-          rollNumber: total - i,
-        })));
-      }
-      setLoading(false);
+      setLoadingMore(false);
+      inFlightRef.current = false;
+      return;
     }
-    load();
+
+    const rollIds = rollData.map((r: { id: number }) => r.id);
+    const [achievementsByRoll, twinsByRoll] = await Promise.all([
+      loadAchievementsForRolls(supabase, rollIds),
+      loadTwinsForRolls(supabase, rollIds),
+    ]);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const mapped: Roll[] = rollData.map((r: any) => ({
+      id: r.id,
+      roll_date: r.roll_date,
+      roll_time: r.roll_time,
+      red_die_number: r.red_die_number,
+      white_die_number: r.white_die_number,
+      red_drink_name: r.red_drink_name,
+      white_drink_name: r.white_drink_name,
+      red_drink_logo: r.red_drink_logo,
+      white_drink_logo: r.white_drink_logo,
+      is_doubles: r.is_doubles,
+      is_daily_double: r.is_daily_double ?? false,
+      achievements: achievementsByRoll[r.id] ?? [],
+      twinPartners: twinsByRoll[r.id] ?? [],
+      rollNumber: r.user_roll_number,
+    }));
+
+    setRolls((prev) => (isFirstPage ? mapped : [...prev, ...mapped]));
+    lastTimeRef.current = mapped[mapped.length - 1].roll_time;
+    if (rollData.length < PAGE_SIZE) {
+      hasMoreRef.current = false;
+      setHasMore(false);
+    }
+    if (isFirstPage) setLoading(false);
+    setLoadingMore(false);
+    inFlightRef.current = false;
+  }, [supabase, debouncedSearch, doublesOnly, achievementsOnly, twinsiesOnly, dateFrom, dateTo]);
+
+  // First mount: resolve the user, then fetch the lifetime roll count for
+  // the header. The count is independent of filters; it's the user's total.
+  useEffect(() => {
+    let cancelled = false;
+    async function init() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (cancelled || !user) return;
+      userIdRef.current = user.id;
+      const { count } = await supabase
+        .from("rolls")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      if (!cancelled) setTotalRolls(count ?? 0);
+      if (!cancelled) await loadPage();
+    }
+    init();
+    return () => {
+      cancelled = true;
+    };
+    // loadPage is intentionally omitted: it's invoked once on init and re-run
+    // by the filter-reset effect below when its deps change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 
-  const filtered = rolls.filter((r) => {
-    if (doublesOnly && !r.is_doubles) return false;
-    if (achievementsOnly && r.achievements.length === 0) return false;
-    if (twinsiesOnly && r.twinPartners.length === 0) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!r.red_drink_name.toLowerCase().includes(q) && !r.white_drink_name.toLowerCase().includes(q)) return false;
+  // Any filter change resets pagination and refetches page 1. Skipped on
+  // first mount (handled by the init effect above).
+  const didInitRef = useRef(false);
+  useEffect(() => {
+    if (!userIdRef.current) return;
+    if (!didInitRef.current) {
+      didInitRef.current = true;
+      return;
     }
-    if (dateFrom && r.roll_date < dateFrom) return false;
-    if (dateTo && r.roll_date > dateTo) return false;
-    return true;
-  });
+    lastTimeRef.current = null;
+    hasMoreRef.current = true;
+    inFlightRef.current = false;
+    setHasMore(true);
+    setLoading(true);
+    setRolls([]);
+    loadPage();
+  }, [debouncedSearch, doublesOnly, achievementsOnly, twinsiesOnly, dateFrom, dateTo, loadPage]);
+
+  // IntersectionObserver sentinel: load the next page when the bottom
+  // marker scrolls into view. Mirrors the feed.
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const node = sentinelRef.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadPage();
+      },
+      { rootMargin: "200px 0px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [loadPage, hasMore, loading]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -132,7 +207,7 @@ export default function HistoryPage() {
         <div className="text-center">
           <h1 className="neon-title font-display text-[38px] tracking-[0.32em] leading-none">HISTORY</h1>
           <p className="font-display text-[11px] tracking-[0.14em] text-text-muted mt-1">
-            {rolls.length} TOTAL ROLLS
+            {totalRolls ?? 0} TOTAL ROLLS
           </p>
         </div>
         <div className="w-8" />
@@ -215,22 +290,35 @@ export default function HistoryPage() {
         {/* Roll list */}
         {loading ? (
           <div className="text-center text-text-secondary py-12">Loading...</div>
-        ) : filtered.length === 0 ? (
+        ) : rolls.length === 0 ? (
           <div className="text-center text-text-secondary py-12">
             <p className="text-4xl mb-3">🎲</p>
             <p>No rolls yet. Get rolling!</p>
           </div>
         ) : (
-          filtered.map((roll) => (
-            <RollCard key={roll.id} roll={roll} dailyDoubleLogo={dailyDoubleLogo} />
-          ))
+          <>
+            {rolls.map((roll) => (
+              <RollCard key={roll.id} roll={roll} dailyDoubleLogo={dailyDoubleLogo} />
+            ))}
+            <div ref={sentinelRef} className="h-1" aria-hidden />
+            {loadingMore && (
+              <div className="text-center text-text-secondary py-4 font-display text-[11px] tracking-[0.18em]">
+                LOADING MORE…
+              </div>
+            )}
+            {!hasMore && !loadingMore && (
+              <div className="text-center text-text-muted py-6 font-display text-[10px] tracking-[0.22em]">
+                · END OF THE LINE ·
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
 
-function RollCard({ roll, dailyDoubleLogo }: { roll: Roll; dailyDoubleLogo: { beer: string | null; shot: string | null } }) {
+function RollCard({ roll, dailyDoubleLogo }: { roll: Roll; dailyDoubleLogo: DailyDoubleLogos }) {
   const date = new Date(roll.roll_time);
   const dateStr = date.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
   const timeStr = date.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true });
