@@ -69,6 +69,7 @@ const SPECIAL_COMBOS: Array<{ id: string; redDrink: string; whiteDrink: string }
   { id: "chicago_charcuterie", redDrink: "High Life", whiteDrink: "Malort" },
   { id: "the_regular", redDrink: "Mickeys", whiteDrink: "Malort" },
   { id: "hot_bitch", redDrink: "Raging Bitch", whiteDrink: "Hot Hooch" },
+  { id: "common_man", redDrink: "High Life", whiteDrink: "Jim Beam" },
 ];
 
 function punchCardEmoji(): string {
@@ -460,6 +461,41 @@ export async function evaluateAchievements(
     }
   }
 
+  // Mark of the Devil: 3+ total 6s shown across both dies in one night.
+  // Double-six = 2, single-six = 1.
+  if (
+    !completed.has("mark_of_the_devil") &&
+    (roll.red_die_number === 6 || roll.white_die_number === 6)
+  ) {
+    const { data: sixRolls } = await adminSupabase
+      .from("rolls")
+      .select("red_die_number, white_die_number")
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date)
+      .or("red_die_number.eq.6,white_die_number.eq.6");
+    const totalSixes = (sixRolls || []).reduce(
+      (acc, r) => acc + (r.red_die_number === 6 ? 1 : 0) + (r.white_die_number === 6 ? 1 : 0),
+      0
+    );
+    if (totalSixes >= 3) {
+      await markComplete("mark_of_the_devil");
+    }
+  }
+
+  // Shot Roulette: 3+ distinct white_drink_name values from rolls where white die = 7.
+  // The white-7 menu slot rotates over time; rolls table snapshots drink names at roll-time.
+  if (!completed.has("shot_roulette") && roll.white_die_number === 7) {
+    const { data: sevens } = await adminSupabase
+      .from("rolls")
+      .select("white_drink_name")
+      .eq("user_id", userId)
+      .eq("white_die_number", 7);
+    const distinctShots = new Set((sevens || []).map((r) => r.white_drink_name));
+    if (distinctShots.size >= 3) {
+      await markComplete("shot_roulette");
+    }
+  }
+
   // ── SPECIAL COMBINATIONS ─────────────────────────────────────────────
   // Matched by drink name — daily double substitutions won't trigger these
   for (const combo of SPECIAL_COMBOS) {
@@ -469,6 +505,24 @@ export async function evaluateAchievements(
       roll.white_drink_name === combo.whiteDrink
     ) {
       await markComplete(combo.id);
+    }
+  }
+
+  // Fire and Ice: Hot Hooch and Rumple Minze rolled in the same night.
+  // Both live on the white die (#8 and #5), so they can never co-occur on a single roll.
+  if (
+    !completed.has("fire_and_ice") &&
+    (roll.white_drink_name === "Hot Hooch" || roll.white_drink_name === "Rumple Minze")
+  ) {
+    const { data: nightWhites } = await adminSupabase
+      .from("rolls")
+      .select("white_drink_name")
+      .eq("user_id", userId)
+      .eq("roll_date", roll.roll_date)
+      .in("white_drink_name", ["Hot Hooch", "Rumple Minze"]);
+    const names = new Set((nightWhites || []).map((r) => r.white_drink_name));
+    if (names.has("Hot Hooch") && names.has("Rumple Minze")) {
+      await markComplete("fire_and_ice");
     }
   }
 
