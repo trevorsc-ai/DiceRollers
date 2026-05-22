@@ -474,7 +474,7 @@ export async function evaluateAchievements(
         const key = `${r.red_die_number}-${r.white_die_number}`;
         counts.set(key, (counts.get(key) ?? 0) + 1);
       }
-      if ([...counts.values()].some((c) => c >= 3)) {
+      if (Array.from(counts.values()).some((c) => c >= 3)) {
         await markComplete("stuck_in_the_matrix");
       }
     }
