@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { LogOut, Shield } from "lucide-react";
 import Link from "next/link";
@@ -12,40 +13,47 @@ interface Profile {
   recovery_email: string | null;
 }
 
+const SETTINGS_PROFILE_KEY = ["settingsProfile"] as const;
+
 export default function SettingsPage() {
   const supabase = createClient();
   const router = useRouter();
-  const [profile, setProfile] = useState<Profile | null>(null);
-  const [recoveryEmail, setRecoveryEmail] = useState("");
-  const [savingEmail, setSavingEmail] = useState(false);
-  const [emailSaved, setEmailSaved] = useState(false);
+  const queryClient = useQueryClient();
 
-  const [newHandle, setNewHandle] = useState("");
-  const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
-  const [checkingHandle, setCheckingHandle] = useState(false);
-  const [savingHandle, setSavingHandle] = useState(false);
-  const [handleSaved, setHandleSaved] = useState(false);
-  const [handleError, setHandleError] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function load() {
+  const { data: profile } = useQuery({
+    queryKey: SETTINGS_PROFILE_KEY,
+    queryFn: async (): Promise<Profile | null> => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user) return null;
       const { data } = await supabase
         .from("profiles")
         .select("username, is_admin, recovery_email")
         .eq("id", user.id)
         .single();
-      if (data) {
-        setProfile(data);
-        setNewHandle(data.username);
-        setRecoveryEmail(data.recovery_email ?? "");
-      }
+      return (data as Profile) ?? null;
+    },
+  });
+
+  // Local form state — initialised from the query once it lands.
+  const [recoveryEmail, setRecoveryEmail] = useState("");
+  const [newHandle, setNewHandle] = useState("");
+  const [recoveryEmailInitialized, setRecoveryEmailInitialized] = useState(false);
+  const [handleInitialized, setHandleInitialized] = useState(false);
+
+  useEffect(() => {
+    if (profile && !handleInitialized) {
+      setNewHandle(profile.username);
+      setHandleInitialized(true);
     }
-    load();
-  }, [supabase]);
+    if (profile && !recoveryEmailInitialized) {
+      setRecoveryEmail(profile.recovery_email ?? "");
+      setRecoveryEmailInitialized(true);
+    }
+  }, [profile, handleInitialized, recoveryEmailInitialized]);
 
   // Debounced handle availability check
+  const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
+  const [checkingHandle, setCheckingHandle] = useState(false);
   useEffect(() => {
     if (!profile || newHandle === profile.username) {
       setHandleAvailable(null);
@@ -56,58 +64,89 @@ export default function SettingsPage() {
       return;
     }
     setCheckingHandle(true);
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
-      const res = await fetch(`/api/check-handle?handle=${encodeURIComponent(newHandle)}`);
-      const data = await res.json();
-      setHandleAvailable(data.available);
-      setCheckingHandle(false);
+      try {
+        const res = await fetch(
+          `/api/check-handle?handle=${encodeURIComponent(newHandle)}`,
+          { signal: controller.signal }
+        );
+        const data = await res.json();
+        setHandleAvailable(data.available);
+        setCheckingHandle(false);
+      } catch (err) {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setCheckingHandle(false);
+      }
     }, 400);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
   }, [newHandle, profile]);
 
-  async function saveHandle() {
-    if (!profile) return;
-    setSavingHandle(true);
-    setHandleError(null);
-    const normalized = newHandle.toLowerCase().trim();
-
-    const res = await fetch("/api/update-handle", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ handle: normalized }),
-    });
-
-    if (!res.ok) {
-      const data = await res.json();
-      setHandleError(
-        data.error === "handle-taken"
-          ? "Handle already taken."
-          : "Failed to update handle. Try again."
+  const saveHandle = useMutation({
+    mutationFn: async (handle: string) => {
+      const normalized = handle.toLowerCase().trim();
+      const res = await fetch("/api/update-handle", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ handle: normalized }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(
+          data.error === "handle-taken"
+            ? "Handle already taken."
+            : "Failed to update handle. Try again."
+        );
+      }
+      return normalized;
+    },
+    onSuccess: (normalized) => {
+      queryClient.setQueryData<Profile | null>(SETTINGS_PROFILE_KEY, (prev) =>
+        prev ? { ...prev, username: normalized } : prev
       );
-      setSavingHandle(false);
-      return;
-    }
+      setNewHandle(normalized);
+    },
+  });
 
-    setProfile({ ...profile, username: normalized });
-    setNewHandle(normalized);
-    setHandleSaved(true);
-    setTimeout(() => setHandleSaved(false), 2000);
-    setSavingHandle(false);
-  }
-
-  async function saveRecoveryEmail() {
-    setSavingEmail(true);
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase
+  const saveRecoveryEmail = useMutation({
+    mutationFn: async (email: string) => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("No user");
+      const trimmed = email.trim() || null;
+      const { error } = await supabase
         .from("profiles")
-        .update({ recovery_email: recoveryEmail.trim() || null })
+        .update({ recovery_email: trimmed })
         .eq("id", user.id);
-      setEmailSaved(true);
-      setTimeout(() => setEmailSaved(false), 2000);
+      if (error) throw error;
+      return trimmed;
+    },
+    onSuccess: (trimmed) => {
+      queryClient.setQueryData<Profile | null>(SETTINGS_PROFILE_KEY, (prev) =>
+        prev ? { ...prev, recovery_email: trimmed } : prev
+      );
+    },
+  });
+
+  // Show "Saved!" briefly after a successful save.
+  const [handleSavedFlash, setHandleSavedFlash] = useState(false);
+  const [emailSavedFlash, setEmailSavedFlash] = useState(false);
+  useEffect(() => {
+    if (saveHandle.isSuccess) {
+      setHandleSavedFlash(true);
+      const t = setTimeout(() => setHandleSavedFlash(false), 2000);
+      return () => clearTimeout(t);
     }
-    setSavingEmail(false);
-  }
+  }, [saveHandle.isSuccess, saveHandle.data]);
+  useEffect(() => {
+    if (saveRecoveryEmail.isSuccess) {
+      setEmailSavedFlash(true);
+      const t = setTimeout(() => setEmailSavedFlash(false), 2000);
+      return () => clearTimeout(t);
+    }
+  }, [saveRecoveryEmail.isSuccess, saveRecoveryEmail.data]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -120,6 +159,7 @@ export default function SettingsPage() {
   const handleChanged = newHandle !== profile.username;
   const handleValid = newHandle.length >= 3 && newHandle.length <= 20;
   const canSaveHandle = handleChanged && handleValid && handleAvailable === true && !checkingHandle;
+  const handleError = saveHandle.error instanceof Error ? saveHandle.error.message : null;
 
   return (
     <div className="min-h-screen bg-background px-4 py-6">
@@ -139,7 +179,7 @@ export default function SettingsPage() {
               <input
                 type="text"
                 value={newHandle}
-                onChange={(e) => { setNewHandle(e.target.value); setHandleError(null); }}
+                onChange={(e) => { setNewHandle(e.target.value); saveHandle.reset(); }}
                 minLength={3}
                 maxLength={20}
                 placeholder="your_handle"
@@ -158,19 +198,17 @@ export default function SettingsPage() {
               )}
             </div>
             <button
-              onClick={saveHandle}
-              disabled={!canSaveHandle || savingHandle}
+              onClick={() => saveHandle.mutate(newHandle)}
+              disabled={!canSaveHandle || saveHandle.isPending}
               className="px-3 py-2 bg-neon-pink text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {handleSaved ? "Saved!" : savingHandle ? "..." : "Save"}
+              {handleSavedFlash ? "Saved!" : saveHandle.isPending ? "..." : "Save"}
             </button>
           </div>
           {handleChanged && handleAvailable === false && !checkingHandle && (
             <p className="text-neon-pink text-xs mt-1">Handle already taken</p>
           )}
-          {handleError && (
-            <p className="text-neon-pink text-xs mt-1">{handleError}</p>
-          )}
+          {handleError && <p className="text-neon-pink text-xs mt-1">{handleError}</p>}
         </div>
 
         {/* Recovery email */}
@@ -188,11 +226,11 @@ export default function SettingsPage() {
               className="flex-1 bg-surface-2 border border-surface-2 rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
             />
             <button
-              onClick={saveRecoveryEmail}
-              disabled={savingEmail}
+              onClick={() => saveRecoveryEmail.mutate(recoveryEmail)}
+              disabled={saveRecoveryEmail.isPending}
               className="px-3 py-2 bg-neon-pink text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {emailSaved ? "Saved!" : savingEmail ? "..." : "Save"}
+              {emailSavedFlash ? "Saved!" : saveRecoveryEmail.isPending ? "..." : "Save"}
             </button>
           </div>
         </div>

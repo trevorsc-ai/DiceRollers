@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useState, useRef } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { Pencil, Check, X, Upload } from "lucide-react";
 
@@ -13,40 +14,62 @@ interface MenuItem {
   is_active: boolean;
 }
 
+const MENU_QUERY_KEY = ["menuItems"] as const;
+
 export default function MenuPage() {
   const supabase = createClient();
-  const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
   const [editLogo, setEditLogo] = useState<File | null>(null);
   const [editLogoPreview, setEditLogoPreview] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null!) as React.MutableRefObject<HTMLInputElement>;
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("is_admin")
-          .eq("id", user.id)
-          .single();
-        setIsAdmin(profile?.is_admin ?? false);
-      }
+  // Admin gating happens server-side in /admin/layout.tsx — anyone reaching
+  // this page is an admin, so we always show edit controls.
+  const isAdmin = true;
 
+  const { data: menu = [], isLoading: loading } = useQuery({
+    queryKey: MENU_QUERY_KEY,
+    queryFn: async (): Promise<MenuItem[]> => {
       const { data } = await supabase
         .from("menu_items")
         .select("*")
         .eq("is_active", true)
         .order("die_number");
-      if (data) setMenu(data);
-      setLoading(false);
-    }
-    load();
-  }, [supabase]);
+      return (data as MenuItem[]) ?? [];
+    },
+  });
+
+  const saveItem = useMutation({
+    mutationFn: async ({ item, name, logo }: { item: MenuItem; name: string; logo: File | null }) => {
+      let logoUrl = item.logo_url;
+      if (logo) {
+        const ext = logo.name.split(".").pop();
+        const path = `menu/${item.die_color}-${item.die_number}-${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabase.storage
+          .from("drink-logos")
+          .upload(path, logo, { upsert: true });
+        if (!uploadError) {
+          const { data: urlData } = supabase.storage.from("drink-logos").getPublicUrl(path);
+          logoUrl = urlData.publicUrl;
+        }
+      }
+      const { error } = await supabase
+        .from("menu_items")
+        .update({ drink_name: name, logo_url: logoUrl })
+        .eq("id", item.id);
+      if (error) throw error;
+      return { id: item.id, name, logoUrl };
+    },
+    onSuccess: ({ id, name, logoUrl }) => {
+      queryClient.setQueryData<MenuItem[]>(MENU_QUERY_KEY, (prev) =>
+        (prev ?? []).map((m) => (m.id === id ? { ...m, drink_name: name, logo_url: logoUrl } : m))
+      );
+      cancelEdit();
+    },
+  });
+  const saving = saveItem.isPending;
 
   function startEdit(item: MenuItem) {
     setEditingId(item.id);
@@ -69,51 +92,13 @@ export default function MenuPage() {
     setEditLogoPreview(URL.createObjectURL(file));
   }
 
-  async function saveEdit(item: MenuItem) {
-    setSaving(true);
-    let logoUrl = item.logo_url;
-
-    if (editLogo) {
-      const ext = editLogo.name.split(".").pop();
-      const path = `menu/${item.die_color}-${item.die_number}-${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("drink-logos")
-        .upload(path, editLogo, { upsert: true });
-      if (!uploadError) {
-        const { data: urlData } = supabase.storage.from("drink-logos").getPublicUrl(path);
-        logoUrl = urlData.publicUrl;
-      }
-    }
-
-    const { error } = await supabase
-      .from("menu_items")
-      .update({ drink_name: editName, logo_url: logoUrl })
-      .eq("id", item.id);
-
-    if (!error) {
-      setMenu((prev) =>
-        prev.map((m) =>
-          m.id === item.id ? { ...m, drink_name: editName, logo_url: logoUrl } : m
-        )
-      );
-    }
-    setSaving(false);
-    cancelEdit();
+  function saveEdit(item: MenuItem) {
+    saveItem.mutate({ item, name: editName, logo: editLogo });
   }
 
   if (loading) return (
     <div className="min-h-screen bg-background flex items-center justify-center">
       <p className="text-text-secondary">Loading...</p>
-    </div>
-  );
-
-  if (!isAdmin) return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-4">
-      <div className="text-center">
-        <p className="text-5xl mb-4">🔒</p>
-        <p className="font-display text-2xl neon-text-pink tracking-widest">ADMIN ONLY</p>
-        <p className="text-text-secondary text-sm mt-2">The menu is managed by bar staff.</p>
-      </div>
     </div>
   );
 
