@@ -189,3 +189,29 @@ npx next build     # must pass (needs .env.local with Supabase URL/keys)
 ```
 
 Migrations: new SQL goes in `supabase/migrations/NNN_description.sql` with the next sequential number. Apply locally first.
+
+---
+
+## Deployment Standard
+
+**See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the full procedure.**
+
+Claude owns the end-to-end deploy. Every change follows 5 phases:
+
+| Phase | Script | What |
+|---|---|---|
+| 1. Preflight | `scripts/deploy/preflight.sh` | `git pull` + migration drift check (read-only) |
+| 2. Develop | *(manual work)* | Feature branch, code, SQL migrations |
+| 3. Pre-PR gates | `scripts/deploy/prepush.sh` | tsc + lint + build + type regen |
+| 4a. Migrate | `scripts/deploy/migrate.sh` | `supabase db push --linked` **before** merging code |
+| 4b–d. Merge | `scripts/deploy/merge.sh` | Push → PR → preview gate → squash-merge |
+| 5. Post-deploy | `scripts/deploy/postdeploy.sh` | Wait for READY + curl `/api/health` |
+
+Run `scripts/deploy/ship.sh` to execute the full flow.
+
+**Key rules:**
+- Always feature branch → PR → squash-merge to main (no direct commits)
+- Apply migrations to prod **before** merging code that depends on them
+- All four pre-PR gates must pass before pushing
+- On failure: surface the error, do NOT auto-rollback — await decision
+- WIP commit + push at end of every session (no local-only work)
