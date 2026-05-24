@@ -109,8 +109,9 @@ Vercel auto-deploys main. No manual `vercel --prod` needed.
 2. Curl production health:
 
 ```bash
-curl -sI https://diceroll.today           # expect 200 or 3xx
-curl -s https://diceroll.today/api/health # expect { ok: true, db: "up" }
+curl -sI https://www.diceroll.today           # expect 200 or 3xx
+curl -s https://www.diceroll.today/api/health # expect { ok: true, db: "up" }
+# Note: bare diceroll.today redirects (307) to www.diceroll.today
 ```
 
 **If either fails:** Surface the error with full output. Do NOT auto-rollback. Wait for you to decide next steps.
