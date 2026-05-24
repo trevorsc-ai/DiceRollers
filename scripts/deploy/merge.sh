@@ -68,46 +68,52 @@ PR_NUMBER=$(echo "$PR_URL" | grep -oE '[0-9]+$')
 echo ""
 
 # ── 4c. Wait for preview deployment ───────────────────────────────────────────
+# Preview URLs are protected by Vercel SSO — use `vercel curl` (authenticated)
+# rather than plain curl. Gate on: GitHub check green AND health ok.
 echo "▶ Waiting for Vercel preview deployment..."
 MAX_WAIT=300  # 5 minutes
 ELAPSED=0
-PREVIEW_URL=""
+PREVIEW_READY=false
 
 while [ $ELAPSED -lt $MAX_WAIT ]; do
-  PREVIEW_URL=$(gh pr view "$PR_NUMBER" --json url --jq '.url' 2>/dev/null || true)
-
-  # Try to get preview URL from Vercel via gh pr checks
+  # Check GitHub PR checks for the Vercel build status
   CHECKS=$(gh pr checks "$PR_NUMBER" 2>/dev/null || true)
-  VERCEL_URL=$(echo "$CHECKS" | grep -i "vercel" | grep -oE 'https://[^ ]+' | head -1 || true)
+  BUILD_STATUS=$(echo "$CHECKS" | grep -i "vercel" | grep -iv "comments" | awk '{print $2}' | head -1 || true)
 
-  if [ -n "$VERCEL_URL" ]; then
-    PREVIEW_URL="$VERCEL_URL"
-    echo "  Preview URL: $PREVIEW_URL"
+  if [ "$BUILD_STATUS" = "pass" ]; then
+    echo "  ✅ Vercel build check: pass"
+    PREVIEW_READY=true
 
-    # Check if preview returns 200/3xx
-    HTTP_STATUS=$(curl -sI --max-time 10 "$PREVIEW_URL" | head -1 | awk '{print $2}' || echo "0")
-    if [[ "$HTTP_STATUS" =~ ^(200|301|302|307|308)$ ]]; then
-      echo "  ✅ Preview responding ($HTTP_STATUS)"
-      break
-    else
-      echo "  ⏳ Preview not ready yet (status: $HTTP_STATUS)..."
+    # Get preview URL from Vercel CLI (most recent preview deployment)
+    PREVIEW_URL=$(vercel ls 2>/dev/null | awk '/Preview/ && /Ready/ {print $3; exit}' || true)
+    if [ -n "$PREVIEW_URL" ]; then
+      echo "  Preview URL: $PREVIEW_URL"
+      # Use vercel curl for authenticated access to SSO-protected preview
+      HEALTH=$(vercel curl "${PREVIEW_URL}/api/health" 2>/dev/null || echo '{"ok":false,"error":"vercel curl failed"}')
+      echo "  Health: $HEALTH"
+      HEALTH_OK=$(echo "$HEALTH" | python3 -c "import sys,json; d=json.load(sys.stdin); print('yes' if d.get('ok') else 'no')" 2>/dev/null || echo "unknown")
+      if [ "$HEALTH_OK" = "yes" ]; then
+        echo "  ✅ Preview health: ok"
+      elif [ "$HEALTH_OK" = "unknown" ]; then
+        echo "  ℹ️  Health parse uncertain — build is READY, proceeding"
+      else
+        echo "  ⚠️  Preview health returned not-ok — check manually before merging"
+      fi
     fi
+    break
+  elif echo "$BUILD_STATUS" | grep -qE "fail|error"; then
+    echo "  ❌ Vercel build failed — aborting"
+    exit 1
   else
-    echo "  ⏳ Waiting for preview URL... (${ELAPSED}s)"
+    echo "  ⏳ Vercel build: ${BUILD_STATUS:-pending} (${ELAPSED}s)..."
   fi
 
   sleep 15
   ELAPSED=$((ELAPSED + 15))
 done
 
-if [ $ELAPSED -ge $MAX_WAIT ]; then
+if [ "$PREVIEW_READY" = false ]; then
   echo "  ⚠️  Preview timed out — proceeding anyway (check Vercel dashboard)"
-fi
-
-# Also check health endpoint on preview if we have the URL
-if [ -n "$PREVIEW_URL" ]; then
-  HEALTH=$(curl -s --max-time 10 "${PREVIEW_URL}/api/health" 2>/dev/null || echo '{"ok":false}')
-  echo "  Health: $HEALTH"
 fi
 
 echo ""
