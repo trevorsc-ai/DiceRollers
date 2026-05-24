@@ -9,6 +9,14 @@
  *
  * Or to target a specific user only:
  *   node --env-file=.env.local scripts/recalculate-achievements.mjs --user=<uuid>
+ *
+ * Note: Twinsies (twinsies) is intentionally excluded — it's a repeatable
+ * cross-user achievement that can't be derived from a single user's roll
+ * history. Its rows are preserved (not deleted) during recalc.
+ *
+ * Note: The Punch Card (the_punch_card) recalc reflects only the current
+ * in-progress cycle. Completed cycle history lives in punch_card_completions,
+ * which this script does not touch.
  */
 
 import { createClient } from "@supabase/supabase-js";
@@ -43,11 +51,41 @@ function getNYHour(timestamp) {
   );
 }
 
+/** Compute Easter Sunday for a given year using the Anonymous Gregorian algorithm. */
+function getEasterDate(year) {
+  const a = year % 19;
+  const b = Math.floor(year / 100);
+  const c = year % 100;
+  const d = Math.floor(b / 4);
+  const e = b % 4;
+  const f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3);
+  const h = (19 * a + b - d - g + 15) % 30;
+  const i = Math.floor(c / 4);
+  const k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7;
+  const m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31);
+  const day = ((h + l - 7 * m + 114) % 31) + 1;
+  return { month, day };
+}
+
+/** Compute the date of Thanksgiving (4th Thursday of November) for a given year. */
+function getThanksgivingDate(year) {
+  const firstDay = new Date(year, 10, 1).getDay(); // 0=Sun
+  const firstThursday = firstDay <= 4 ? 5 - firstDay : 12 - firstDay;
+  const day = firstThursday + 21; // + 3 weeks = 4th Thursday
+  return { month: 11, day };
+}
+
+// Drink-name matched special combos (order doesn't matter)
 const SPECIAL_COMBOS = [
-  { id: "high_abv", redDrink: "Raging Bitch", whiteDrink: "Rumple Minze" },
-  { id: "the_freshman", redDrink: "Whiteclaw", whiteDrink: "Espolon" },
-  { id: "chicago_charcuterie", redDrink: "High Life", whiteDrink: "Malort" },
-  { id: "the_regular", redDrink: "Mickeys", whiteDrink: "Malort" },
+  { id: "high_abv",            redDrink: "Raging Bitch", whiteDrink: "Rumple Minze" },
+  { id: "the_freshman",        redDrink: "Whiteclaw",    whiteDrink: "Espolon" },
+  { id: "chicago_charcuterie", redDrink: "High Life",    whiteDrink: "Malort" },
+  { id: "the_regular",         redDrink: "Mickeys",      whiteDrink: "Malort" },
+  { id: "hot_bitch",           redDrink: "Raging Bitch", whiteDrink: "Hot Hooch" },
+  { id: "common_man",          redDrink: "High Life",    whiteDrink: "Jim Beam" },
 ];
 
 // ── Achievement evaluation (full recalc from all rolls) ───────────────────────
@@ -78,6 +116,12 @@ function computeAchievements(rolls) {
     };
   }
 
+  // Pre-build per-night buckets (used by multiple sections below)
+  const rollsByDate = {}; // date -> [rolls]
+  for (const r of rolls) {
+    (rollsByDate[r.roll_date] ??= []).push(r);
+  }
+
   // ── YOU'RE A REGULAR ──────────────────────────────────────────────────────
 
   // Ring the Gong: first roll ever
@@ -101,7 +145,7 @@ function computeAchievements(rolls) {
   const malortCount = rolls.filter((r) => r.white_die_number === 6).length;
   upsert("malort_advent_calendar", malortCount, 25);
 
-  // The Punch Card: Roll each 1–8 on BOTH dice
+  // The Punch Card: Roll each 1–8 on BOTH dice (current cycle only)
   const redHit = new Set(rolls.map((r) => r.red_die_number));
   const whiteHit = new Set(rolls.map((r) => r.white_die_number));
   upsert(
@@ -130,13 +174,21 @@ function computeAchievements(rolls) {
     combos: Array.from(uniqueCombos),
   });
 
+  // Twinsies: intentionally excluded — cross-user, repeatable; cannot be
+  // derived from a single user's roll history. Rows are preserved below.
+
   // ── THE CRAPS TABLE ───────────────────────────────────────────────────────
 
-  // Feeling Lucky: doubles twice in a row (at any point in history)
-  for (let i = 1; i < rolls.length; i++) {
-    if (rolls[i].is_doubles && rolls[i - 1].is_doubles) {
-      markComplete("feeling_lucky");
-      break;
+  // Feeling Lucky: doubles twice in a row (within the same night)
+  outer_lucky: for (const nightRolls of Object.values(rollsByDate)) {
+    const sorted = [...nightRolls].sort((a, b) =>
+      a.roll_time < b.roll_time ? -1 : a.roll_time > b.roll_time ? 1 : 0
+    );
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i].is_doubles && sorted[i - 1].is_doubles) {
+        markComplete("feeling_lucky");
+        break outer_lucky;
+      }
     }
   }
 
@@ -155,19 +207,43 @@ function computeAchievements(rolls) {
   if (Object.values(doublesByDate).some((c) => c >= 3)) markComplete("on_fire");
 
   // Deja Vu: same combo twice in one night
-  const rollsByDate = {};
-  for (const r of rolls) {
-    (rollsByDate[r.roll_date] ??= []).push(`${r.red_die_number}-${r.white_die_number}`);
+  // Stuck in the Matrix: same combo three times in one night
+  for (const nightRolls of Object.values(rollsByDate)) {
+    const comboCounts = new Map();
+    for (const r of nightRolls) {
+      const key = `${r.red_die_number}-${r.white_die_number}`;
+      comboCounts.set(key, (comboCounts.get(key) ?? 0) + 1);
+    }
+    const maxCount = Math.max(0, ...Array.from(comboCounts.values()));
+    if (maxCount >= 2) markComplete("deja_vu");
+    if (maxCount >= 3) markComplete("stuck_in_the_matrix");
   }
-  for (const combos of Object.values(rollsByDate)) {
-    if (combos.length > new Set(combos).size) {
-      markComplete("deja_vu");
+
+  // Mark of the Devil: 3+ total 6s across both dice in one night
+  // (double-six counts as 2)
+  for (const nightRolls of Object.values(rollsByDate)) {
+    const totalSixes = nightRolls.reduce(
+      (acc, r) =>
+        acc + (r.red_die_number === 6 ? 1 : 0) + (r.white_die_number === 6 ? 1 : 0),
+      0
+    );
+    if (totalSixes >= 3) {
+      markComplete("mark_of_the_devil");
       break;
     }
   }
 
+  // Shot Roulette: 3+ distinct white_drink_name values from rolls where white die = 7
+  {
+    const distinctShots = new Set(
+      rolls.filter((r) => r.white_die_number === 7).map((r) => r.white_drink_name)
+    );
+    if (distinctShots.size >= 3) markComplete("shot_roulette");
+  }
+
   // ── SPECIAL COMBINATIONS ─────────────────────────────────────────────────
 
+  // Drink-name matched (single roll)
   for (const combo of SPECIAL_COMBOS) {
     const hit = rolls.find(
       (r) => r.red_drink_name === combo.redDrink && r.white_drink_name === combo.whiteDrink
@@ -175,9 +251,22 @@ function computeAchievements(rolls) {
     if (hit) markComplete(combo.id);
   }
 
+  // Fire and Ice: Hot Hooch and Rumple Minze rolled in the same night
+  for (const nightRolls of Object.values(rollsByDate)) {
+    const whites = new Set(nightRolls.map((r) => r.white_drink_name));
+    if (whites.has("Hot Hooch") && whites.has("Rumple Minze")) {
+      markComplete("fire_and_ice");
+      break;
+    }
+  }
+
+  // Gen Alpha: red die 6 + white die 7 (die-number matched)
+  if (rolls.some((r) => r.red_die_number === 6 && r.white_die_number === 7)) {
+    markComplete("gen_alpha");
+  }
+
   // ── CLOCKING IN ──────────────────────────────────────────────────────────
 
-  // Day-of-week achievements + hour tracking
   const hoursByDate = {};
   for (const r of rolls) {
     const hour = getNYHour(new Date(r.roll_time));
@@ -204,9 +293,11 @@ function computeAchievements(rolls) {
     }
   }
 
-  // Bender: 3 consecutive bar nights (any time in history)
+  // Bender: 3 consecutive bar nights
+  // My New Home: 7 consecutive bar nights
   const uniqueSortedDates = [...new Set(rolls.map((r) => r.roll_date))].sort();
   const MS_PER_DAY = 86400000;
+
   for (let i = 2; i < uniqueSortedDates.length; i++) {
     const d0 = new Date(uniqueSortedDates[i - 2] + "T12:00:00").getTime();
     const d1 = new Date(uniqueSortedDates[i - 1] + "T12:00:00").getTime();
@@ -217,7 +308,6 @@ function computeAchievements(rolls) {
     }
   }
 
-  // My New Home: 7 consecutive bar nights (any time in history)
   for (let i = 6; i < uniqueSortedDates.length; i++) {
     let consecutive = true;
     for (let j = 1; j <= 6; j++) {
@@ -230,72 +320,93 @@ function computeAchievements(rolls) {
 
   // ── DANGER ZONE ──────────────────────────────────────────────────────────
 
-  // Run It Back: 2+ rolls same night
+  // Roll count per night
   for (const nightRolls of Object.values(rollsByDate)) {
-    if (nightRolls.length >= 2) {
-      markComplete("run_it_back");
-      break;
-    }
+    const n = nightRolls.length;
+    if (n >= 2) markComplete("run_it_back");
+    if (n >= 3) markComplete("hat_trick");
+    if (n >= 4) markComplete("the_quad_god");
+    if (n >= 5) markComplete("the_legend");
   }
 
-  // Hat Trick: 3+ rolls same night
-  for (const nightRolls of Object.values(rollsByDate)) {
-    if (nightRolls.length >= 3) {
-      markComplete("hat_trick");
-      break;
-    }
-  }
-
-  // The Legend: 5+ rolls same night
-  for (const nightRolls of Object.values(rollsByDate)) {
-    if (nightRolls.length >= 5) {
-      markComplete("the_legend");
-      break;
-    }
-  }
-
-  // The Quad God: 4+ rolls same night
-  for (const nightRolls of Object.values(rollsByDate)) {
-    if (nightRolls.length >= 4) {
-      markComplete("the_quad_god");
-      break;
-    }
-  }
-
-  // Power Hour: any 60-min window with 2+ rolls
-  outer_power: for (let i = 0; i < rolls.length; i++) {
-    const t = new Date(rolls[i].roll_time).getTime();
-    const windowStart = t - 60 * 60 * 1000;
+  // Power Hour: 2+ rolls within any 60-minute window
+  // Slow Down: 3+ rolls within any 60-minute window
+  outer_ph: for (let i = 0; i < rolls.length; i++) {
+    const windowStart = new Date(rolls[i].roll_time).getTime() - 60 * 60 * 1000;
     let count = 0;
     for (let j = i; j >= 0; j--) {
       if (new Date(rolls[j].roll_time).getTime() >= windowStart) count++;
       else break;
     }
-    if (count >= 2) {
-      markComplete("power_hour");
-      break outer_power;
+    if (count >= 2) { markComplete("power_hour"); }
+    if (count >= 3) { markComplete("slow_down"); break outer_ph; }
+    if (count >= 2 && results["slow_down"]?.completed_at) break outer_ph;
+  }
+
+  // Dragon's Breath: Hot Hooch twice in one night
+  for (const nightRolls of Object.values(rollsByDate)) {
+    const hotHoochCount = nightRolls.filter((r) => r.white_drink_name === "Hot Hooch").length;
+    if (hotHoochCount >= 2) {
+      markComplete("dragons_breath");
+      break;
     }
   }
 
-  // Malort Again!: 2+ Malort rolls in one night
+  // Malort Again!: 2+ Malort rolls (white=6) in one night
   const malortByDate = {};
   for (const r of rolls) {
     if (r.white_die_number === 6) malortByDate[r.roll_date] = (malortByDate[r.roll_date] ?? 0) + 1;
   }
   if (Object.values(malortByDate).some((c) => c >= 2)) markComplete("malort_three_peat");
 
-  // Slow Down: any 60-min window with 3+ rolls
-  outer_slow: for (let i = 0; i < rolls.length; i++) {
-    const t = new Date(rolls[i].roll_time).getTime();
-    const windowStart = t - 60 * 60 * 1000;
-    let count = 0;
-    for (let j = i; j >= 0; j--) {
-      if (new Date(rolls[j].roll_time).getTime() >= windowStart) count++;
-      else break;
+  // ── HOLIDAYS ─────────────────────────────────────────────────────────────
+
+  for (const r of rolls) {
+    const [year, month, day] = r.roll_date.split("-").map(Number);
+    const dow = new Date(year, month - 1, day).getDay(); // 0=Sun…6=Sat
+
+    if (!results["new_years_day"]?.completed_at && month === 1 && day === 1)
+      markComplete("new_years_day");
+    if (!results["valentines_day"]?.completed_at && month === 2 && day === 14)
+      markComplete("valentines_day");
+    if (!results["leap_day"]?.completed_at && month === 2 && day === 29)
+      markComplete("leap_day");
+    if (!results["pi_day"]?.completed_at && month === 3 && day === 14)
+      markComplete("pi_day");
+    if (!results["st_patricks_day"]?.completed_at && month === 3 && day === 17)
+      markComplete("st_patricks_day");
+    if (!results["april_fools"]?.completed_at && month === 4 && day === 1)
+      markComplete("april_fools");
+    if (!results["cinco_de_mayo"]?.completed_at && month === 5 && day === 5)
+      markComplete("cinco_de_mayo");
+    if (!results["independence_day"]?.completed_at && month === 7 && day === 4)
+      markComplete("independence_day");
+    if (!results["halloween"]?.completed_at && month === 10 && day === 31)
+      markComplete("halloween");
+    if (!results["new_years_eve"]?.completed_at && month === 12 && day === 31)
+      markComplete("new_years_eve");
+    if (!results["friday_13th"]?.completed_at && day === 13 && dow === 5)
+      markComplete("friday_13th");
+
+    // Christmas: the Sun–Sat week containing Dec 25
+    if (!results["christmas"]?.completed_at && month === 12) {
+      const christmasDow = new Date(year, 11, 25).getDay();
+      const weekStart = 25 - christmasDow;
+      if (day >= weekStart && day <= weekStart + 6) markComplete("christmas");
     }
-    if (count >= 3) {
-      markComplete("slow_down");
-      break outer_slow;
+
+    // Easter: single day derived via Anonymous Gregorian algorithm
+    if (!results["easter"]?.completed_at) {
+      const easter = getEasterDate(year);
+      if (month === easter.month && day === easter.day) markComplete("easter");
+    }
+
+    // Thanksgiving: the Sun–Sat week containing the 4th Thursday of November
+    if (!results["thanksgiving"]?.completed_at && month === 11) {
+      const tday = getThanksgivingDate(year);
+      const weekStart = tday.day - 4;
+      const weekEnd = tday.day + 2;
+      if (day >= weekStart && day <= weekEnd) markComplete("thanksgiving");
     }
   }
 
@@ -321,11 +432,13 @@ async function recalculateUser(userId) {
   // Compute what achievements should look like
   const computed = computeAchievements(rolls || []);
 
-  // Delete existing achievements for this user
+  // Delete existing achievements for this user EXCEPT twinsies
+  // (twinsies is cross-user and can't be recalculated from a single user's rolls)
   const { error: delErr } = await supabase
     .from("user_achievements")
     .delete()
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .neq("achievement_id", "twinsies");
   if (delErr) throw new Error(`Deleting achievements for ${userId}: ${delErr.message}`);
 
   // Insert fresh rows (only for achievements that have any progress)
