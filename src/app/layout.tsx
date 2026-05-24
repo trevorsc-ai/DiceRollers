@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Space_Mono, Space_Grotesk } from "next/font/google";
+import { Providers } from "@/components/Providers";
 import "./globals.css";
 
 const spaceMono = Space_Mono({
@@ -36,7 +37,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${spaceGrotesk.variable} ${spaceMono.variable} font-body antialiased bg-background text-text-primary`}>
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

@@ -2,11 +2,13 @@
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import DiePicker from "@/components/DiePicker";
 import DoublesConfetti from "@/components/DoublesConfetti";
 import MalortCelebration from "@/components/MalortCelebration";
 import AchievementModal from "@/components/AchievementModal";
+import { DrinkBadge } from "@/components/roll/DrinkBadge";
 import { Check, Settings } from "lucide-react";
 import type { AchievementInfo } from "@/lib/achievements";
 
@@ -22,17 +24,73 @@ interface DrinkDisplay {
   logo: string | null;
 }
 
+interface SaveRollInput {
+  redDieNumber: number;
+  whiteDieNumber: number;
+  redDrinkName: string;
+  whiteDrinkName: string;
+  redDrinkLogo: string | null;
+  whiteDrinkLogo: string | null;
+  dailyDouble: boolean;
+}
+
+interface SaveRollResponse {
+  rollId: number;
+  newAchievements: AchievementInfo[];
+}
+
 export default function RollPage() {
   const supabase = createClient();
 
   const [redDie, setRedDie] = useState<number | null>(null);
   const [whiteDie, setWhiteDie] = useState<number | null>(null);
-  const [menu, setMenu] = useState<MenuItem[]>([]);
-  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const [dailyDoubleChoice, setDailyDoubleChoice] = useState<boolean | null>(null);
   const [newAchievements, setNewAchievements] = useState<AchievementInfo[]>([]);
+
+  const { data: menu = [], error: menuError } = useQuery({
+    queryKey: ["menuItems", "active"],
+    // Menu rarely changes during a session; the admin/menu page invalidates
+    // its own key, this one is read-only.
+    staleTime: 5 * 60_000,
+    queryFn: async (): Promise<MenuItem[]> => {
+      const { data, error } = await supabase
+        .from("menu_items")
+        .select("die_color, die_number, drink_name, logo_url")
+        .eq("is_active", true)
+        .order("die_number");
+      if (error) throw error;
+      return (data as MenuItem[]) ?? [];
+    },
+  });
+
+  const saveRoll = useMutation({
+    mutationFn: async (input: SaveRollInput): Promise<SaveRollResponse> => {
+      const res = await fetch("/api/rolls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(input),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      return res.json();
+    },
+    onSuccess: ({ newAchievements: earned }) => {
+      setSaved(true);
+      if (earned && earned.length > 0) {
+        try {
+          const existing = JSON.parse(localStorage.getItem("new_achievements") ?? "[]");
+          localStorage.setItem(
+            "new_achievements",
+            JSON.stringify([...existing, ...earned.map((a) => a.id)])
+          );
+        } catch (err) {
+          console.warn("localStorage failed:", err);
+        }
+        setNewAchievements(earned);
+      }
+    },
+  });
+  const saving = saveRoll.isPending;
 
   const now = new Date();
   const dateStr = now.toLocaleDateString("en-US", {
@@ -69,23 +127,8 @@ export default function RollPage() {
     setDailyDoubleChoice(null);
   }, [redDie, whiteDie]);
 
-  useEffect(() => {
-    async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) setUserId(user.id);
-
-      const { data } = await supabase
-        .from("menu_items")
-        .select("die_color, die_number, drink_name, logo_url")
-        .eq("is_active", true)
-        .order("die_number");
-      if (data) setMenu(data);
-    }
-    load();
-  }, [supabase]);
-
-  async function handleSave() {
-    if (redDie === null || whiteDie === null || !userId) return;
+  function handleSave() {
+    if (redDie === null || whiteDie === null) return;
     if (isDoubles && !isDouble6s && dailyDoubleChoice === null) return;
 
     const takingDailyDouble = isDoubles && !isDouble6s && dailyDoubleChoice === true;
@@ -93,36 +136,15 @@ export default function RollPage() {
     const whiteDrink = takingDailyDouble ? dailyDoubleShot : regularWhiteDrink;
     if (!redDrink || !whiteDrink) return;
 
-    setSaving(true);
-    const res = await fetch("/api/rolls", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        redDieNumber: redDie,
-        whiteDieNumber: whiteDie,
-        redDrinkName: redDrink.name,
-        whiteDrinkName: whiteDrink.name,
-        redDrinkLogo: redDrink.logo,
-        whiteDrinkLogo: whiteDrink.logo,
-        dailyDouble: takingDailyDouble,
-      }),
+    saveRoll.mutate({
+      redDieNumber: redDie,
+      whiteDieNumber: whiteDie,
+      redDrinkName: redDrink.name,
+      whiteDrinkName: whiteDrink.name,
+      redDrinkLogo: redDrink.logo,
+      whiteDrinkLogo: whiteDrink.logo,
+      dailyDouble: takingDailyDouble,
     });
-    setSaving(false);
-
-    if (res.ok) {
-      const { newAchievements: earned } = await res.json();
-      setSaved(true);
-      if (earned && earned.length > 0) {
-        try {
-          const existing = JSON.parse(localStorage.getItem("new_achievements") ?? "[]");
-          localStorage.setItem(
-            "new_achievements",
-            JSON.stringify([...existing, ...earned.map((a: AchievementInfo) => a.id)])
-          );
-        } catch { /* ignore */ }
-        setNewAchievements(earned);
-      }
-    }
   }
 
   function handleReset() {
@@ -163,6 +185,13 @@ export default function RollPage() {
 
       {/* Scrollable body */}
       <div className="px-[18px] pb-[84px] flex flex-col gap-3.5">
+        {menuError && (
+          <div className="bg-surface border border-neon-pink/40 rounded-[14px] p-3 text-center">
+            <p className="text-neon-pink text-xs font-medium">Couldn&apos;t load tonight&apos;s menu</p>
+            <p className="text-text-secondary text-[11px] mt-0.5">Refresh the page to try again.</p>
+          </div>
+        )}
+
         {/* Dice pickers */}
         <div className="grid grid-cols-2 gap-3">
           <DiePicker color="red" value={redDie} onChange={setRedDie} />
@@ -183,13 +212,25 @@ export default function RollPage() {
             </p>
             <div className="flex items-center justify-around">
               {displayRedDrink && (
-                <DrinkCard drink={displayRedDrink} dieColor="red" dieNum={redDie ?? 0} />
+                <DrinkBadge
+                  size="lg"
+                  color="red"
+                  name={displayRedDrink.name}
+                  logo={displayRedDrink.logo}
+                  dieNum={redDie ?? 0}
+                />
               )}
               {displayRedDrink && displayWhiteDrink && (
                 <div className="text-[#333] text-[22px] shrink-0">+</div>
               )}
               {displayWhiteDrink && (
-                <DrinkCard drink={displayWhiteDrink} dieColor="white" dieNum={whiteDie ?? 0} />
+                <DrinkBadge
+                  size="lg"
+                  color="white"
+                  name={displayWhiteDrink.name}
+                  logo={displayWhiteDrink.logo}
+                  dieNum={whiteDie ?? 0}
+                />
               )}
             </div>
 
@@ -288,46 +329,3 @@ export default function RollPage() {
   );
 }
 
-function DrinkCard({
-  drink,
-  dieColor,
-  dieNum,
-}: {
-  drink: { name: string; logo: string | null };
-  dieColor: string;
-  dieNum: number;
-}) {
-  const isRed = dieColor === "red";
-  return (
-    <div className="flex flex-col items-center gap-1.5 flex-1 px-1.5">
-      <div
-        className="w-[62px] h-[62px] rounded-xl flex items-center justify-center border"
-        style={{
-          background: isRed ? "#FF2D5514" : "#F5F5F50A",
-          borderColor: isRed ? "rgba(255,45,85,0.32)" : "#333",
-        }}
-      >
-        {drink.logo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={drink.logo} alt={drink.name} className="w-12 h-12 object-contain rounded-lg" />
-        ) : (
-          <span
-            className="font-display text-[28px]"
-            style={{ color: isRed ? "#FF2D55" : "#F5F5F5" }}
-          >
-            {dieNum}
-          </span>
-        )}
-      </div>
-      <div className="text-center">
-        <p className="text-text-primary text-[11px] font-medium leading-snug">{drink.name}</p>
-        <p
-          className="text-[10px] mt-0.5"
-          style={{ color: isRed ? "rgba(255,45,85,0.75)" : "#555" }}
-        >
-          {isRed ? "Beer" : "Shot"}
-        </p>
-      </div>
-    </div>
-  );
-}

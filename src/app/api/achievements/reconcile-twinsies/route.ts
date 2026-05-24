@@ -98,11 +98,15 @@ export async function POST() {
       .eq("white_die_number", mine.white)
       .neq("user_id", user.id);
 
+    type ProfileRow = { username: string | null };
+    type PartnerRow = { user_id: string; profiles: ProfileRow | ProfileRow[] | null };
     const partners = Array.from(
       new Set(
-        (partnerRolls || [])
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .map((r: any) => r.profiles?.username as string | undefined)
+        ((partnerRolls ?? []) as unknown as PartnerRow[])
+          .map((r) => {
+            const p = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+            return p?.username ?? null;
+          })
           .filter((u): u is string => typeof u === "string")
       )
     ).sort();

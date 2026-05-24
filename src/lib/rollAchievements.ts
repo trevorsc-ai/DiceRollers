@@ -33,9 +33,22 @@ export async function loadAchievementsForRolls(
 
   const byRoll: Record<number, EarnedAchievement[]> = {};
 
-  for (const row of userAchievements ?? []) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const a = (row as any).achievements;
+  // Supabase's inferred join type is awkward for nested selects; narrow it
+  // explicitly at the boundary instead of `any`.
+  type JoinedAchievement = {
+    id: string;
+    name: string;
+    emoji: string;
+    category_emoji: string;
+    category_name: string;
+  };
+  type AchievementRow = {
+    earned_on_roll_id: number | null;
+    achievements: JoinedAchievement | JoinedAchievement[] | null;
+  };
+
+  for (const row of (userAchievements ?? []) as unknown as AchievementRow[]) {
+    const a = Array.isArray(row.achievements) ? row.achievements[0] : row.achievements;
     if (!a || !row.earned_on_roll_id) continue;
     // Twinsies renders via its own dedicated partner badge.
     if (a.id === "twinsies") continue;

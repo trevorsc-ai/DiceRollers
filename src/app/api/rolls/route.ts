@@ -1,16 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient as createServerClient } from "@/lib/supabase/server";
-import { createClient } from "@supabase/supabase-js";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { getAdjustedRollDate } from "@/lib/dateUtils";
 import { evaluateAchievements } from "@/lib/achievements";
-
-// Admin client for achievement writes (bypasses RLS)
-function createAdminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
 
 export async function POST(req: NextRequest) {
   // Authenticate via session
@@ -68,13 +60,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: rollError?.message ?? "Insert failed" }, { status: 500 });
   }
 
-  // Evaluate achievements using admin client
-  const adminSupabase = createAdminClient();
+  // Evaluate achievements using admin client. Errors don't fail the roll
+  // save, but we log them so they're visible in server logs.
   let newAchievements: Awaited<ReturnType<typeof evaluateAchievements>> = [];
   try {
-    newAchievements = await evaluateAchievements(adminSupabase, user.id, rollData, rollData.id);
-  } catch {
-    // Achievement evaluation errors shouldn't fail the roll save
+    newAchievements = await evaluateAchievements(getAdminClient(), user.id, rollData, rollData.id);
+  } catch (err) {
+    console.error("evaluateAchievements failed", {
+      userId: user.id,
+      rollId: rollData.id,
+      error: err instanceof Error ? err.message : err,
+    });
   }
 
   // Store new achievement IDs in localStorage hint via response

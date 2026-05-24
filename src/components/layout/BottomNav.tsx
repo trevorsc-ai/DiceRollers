@@ -4,6 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Dice6, BarChart2, Trophy, Users } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+import { fetchUnseenLikesCount, unseenLikesQueryKey } from "@/lib/queries/rolls";
 
 const tabs = [
   { href: "/roll",         label: "ROLL",         Icon: Dice6 },
@@ -12,8 +15,12 @@ const tabs = [
   { href: "/feed",         label: "FEED",         Icon: Users },
 ];
 
+const lastSeenFeedKey = (userId: string) => `last_seen_feed_at:${userId}`;
+
 export default function BottomNav() {
   const pathname = usePathname();
+  const supabase = createClient();
+
   const [hasNewAchievements, setHasNewAchievements] = useState(false);
 
   useEffect(() => {
@@ -42,6 +49,56 @@ export default function BottomNav() {
     }
   }, [pathname]);
 
+  // Likes bubble. Mirrors the achievements pattern but the populator is a
+  // lightweight count query (no server-side push for likes-received).
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [lastSeenFeedAt, setLastSeenFeedAt] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setMyUserId(data.user?.id ?? null));
+  }, [supabase]);
+
+  // On first run for this user, anchor "since" to now so we don't surface
+  // every historical like as new.
+  useEffect(() => {
+    if (!myUserId) return;
+    try {
+      const key = lastSeenFeedKey(myUserId);
+      let value = localStorage.getItem(key);
+      if (!value) {
+        value = new Date().toISOString();
+        localStorage.setItem(key, value);
+      }
+      setLastSeenFeedAt(value);
+    } catch {
+      setLastSeenFeedAt(new Date().toISOString());
+    }
+  }, [myUserId]);
+
+  const { data: unseenLikes = 0 } = useQuery({
+    queryKey: myUserId && lastSeenFeedAt
+      ? unseenLikesQueryKey(myUserId, lastSeenFeedAt)
+      : ["unseenLikes", "disabled"],
+    queryFn: () => fetchUnseenLikesCount(supabase, myUserId!, lastSeenFeedAt!),
+    enabled: !!myUserId && !!lastSeenFeedAt,
+    staleTime: 30_000,
+    refetchOnWindowFocus: true,
+  });
+
+  const hasNewLikes = unseenLikes > 0;
+
+  // Visiting FEED marks all current likes seen.
+  useEffect(() => {
+    if (pathname !== "/feed" || !myUserId) return;
+    const now = new Date().toISOString();
+    try {
+      localStorage.setItem(lastSeenFeedKey(myUserId), now);
+    } catch (err) {
+      console.warn("localStorage failed:", err);
+    }
+    setLastSeenFeedAt(now);
+  }, [pathname, myUserId]);
+
   return (
     <nav
       className="fixed bottom-0 left-0 right-0 z-40 bg-surface border-t border-surface-2"
@@ -50,7 +107,9 @@ export default function BottomNav() {
       <div className="flex items-stretch h-16 max-w-lg mx-auto">
         {tabs.map(({ href, label, Icon }) => {
           const active = pathname === href || pathname.startsWith(href + "/");
-          const showDot = href === "/achievements" && hasNewAchievements && !active;
+          const showAchievementsDot = href === "/achievements" && hasNewAchievements && !active;
+          const showLikesDot = href === "/feed" && hasNewLikes && !active;
+          const showDot = showAchievementsDot || showLikesDot;
 
           return (
             <Link
