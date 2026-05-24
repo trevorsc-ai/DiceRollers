@@ -35,7 +35,7 @@ export const ACHIEVEMENT_IDS = {
   MARK_OF_THE_DEVIL: "mark_of_the_devil",
   SHOT_ROULETTE: "shot_roulette",
 
-  // Special Combinations (matched by drink names)
+  // Special Combinations (matched by drink names or die numbers)
   HIGH_ABV: "high_abv",
   THE_FRESHMAN: "the_freshman",
   CHICAGO_CHARCUTERIE: "chicago_charcuterie",
@@ -43,6 +43,7 @@ export const ACHIEVEMENT_IDS = {
   HOT_BITCH: "hot_bitch",
   COMMON_MAN: "common_man",
   FIRE_AND_ICE: "fire_and_ice",
+  GEN_ALPHA: "gen_alpha",
 
   // Clocking In
   SUNDAY_FUNDAY: "sunday_funday",
