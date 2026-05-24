@@ -494,6 +494,11 @@ export async function evaluateAchievements(
     }
   }
 
+  // Gen Alpha: red die 6 + white die 7 (die-number matched)
+  if (roll.red_die_number === 6 && roll.white_die_number === 7) {
+    queueCompletion(A.GEN_ALPHA);
+  }
+
   // Fire and Ice: Hot Hooch and Rumple Minze rolled in the same night.
   // Both live on the white die (#8 and #5), so they can never co-occur on a single roll.
   if (roll.white_drink_name === "Hot Hooch" || roll.white_drink_name === "Rumple Minze") {
