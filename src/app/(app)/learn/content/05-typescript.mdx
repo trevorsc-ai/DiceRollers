@@ -1,0 +1,153 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import ToggleSandbox from "../components/ToggleSandbox";
+import EditableSnippet from "../components/EditableSnippet";
+
+TypeScript is JavaScript with **types**. You annotate what shape your data has, and the compiler catches a huge category of bugs *before* you ever run the code. In this codebase, strict mode is on, so the compiler is opinionated. That's a feature.
+
+## The three you'll see everywhere
+
+```ts
+// 1. Primitive types
+const username: string = "travis";
+const count: number = 42;
+const isAdmin: boolean = true;
+
+// 2. Arrays
+const drinks: string[] = ["beer", "shot", "wine"];
+
+// 3. Objects (via interface or type)
+interface Roll {
+  id: string;
+  user_id: string;
+  drink: string;
+  is_doubles: boolean;
+  created_at: string;
+}
+```
+
+Anywhere a function takes an argument or returns a value, TypeScript wants to know its shape.
+
+## Function types — the most common pattern
+
+<AnnotatedCode
+  language="ts"
+  code={`function formatShortDate(input: string | Date): string {
+  const d = typeof input === "string" ? new Date(input) : input;
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    .toUpperCase();
+}
+
+formatShortDate("2026-06-02"); // ✓
+formatShortDate(new Date());   // ✓
+formatShortDate(12345);        // ✗ TypeScript error before you run it`}
+  annotations={[
+    {
+      lines: 1,
+      title: "Union types",
+      body: "string | Date means 'either a string or a Date.' Useful when a function should accept multiple shapes. Notice the return type after the colon — that's an explicit promise to the compiler that this function always returns a string.",
+    },
+    {
+      lines: 2,
+      title: "Narrowing",
+      body: "Inside the function, we check `typeof input === 'string'`. After this line, TypeScript narrows the type — inside the if-branch, it knows `input` is a string. Inside the else-branch, it knows it's a Date. You get autocomplete accordingly.",
+    },
+    {
+      lines: 9,
+      title: "The catch",
+      body: "You don't have to run the app, deploy it, click around, and notice the bug. TypeScript flags it the moment you type the line. This is why strict mode is a productivity boost, not friction.",
+    },
+  ]}
+/>
+
+## The Database type — TypeScript's masterpiece in this app
+
+Every Supabase table's exact shape is generated into `src/types/database.ts`. When you write a query, TypeScript knows the column names and types:
+
+<AnnotatedCode
+  filename="src/lib/queries/rolls.ts (snippet)"
+  language="ts"
+  code={`import type { Database } from "@/types/database";
+type Roll = Database["public"]["Tables"]["rolls"]["Row"];
+
+export async function fetchRolls(supabase: SupabaseClient<Database>) {
+  return supabase.from("rolls").select("*").limit(20);
+}`}
+  annotations={[
+    {
+      lines: 2,
+      title: "Indexed access types",
+      body: "Database['public']['Tables']['rolls']['Row'] reads as: 'go into the Database type, find the public schema, find the rolls table, give me its Row shape.' That's the exact set of columns that rolls table has — auto-updated whenever you regenerate types after a migration.",
+    },
+    {
+      lines: 4,
+      title: "Typed Supabase client",
+      body: "SupabaseClient<Database> tells the client what schema it's talking to. Now .from('rolls') gets autocompleted, .select('id, drink') gets autocompleted with valid columns, and .eq('drink', ...) only accepts the right types.",
+    },
+  ]}
+/>
+
+## Interfaces vs. types — they're almost the same
+
+You'll see both:
+
+```ts
+interface User { id: string; name: string }
+type User = { id: string; name: string }
+```
+
+In practice, they're interchangeable. Use `interface` for object shapes (it's what most of the codebase does), `type` when you need a union (`type Status = "idle" | "loading" | "error"`) or a computed type.
+
+<ToggleSandbox
+  title="What's the error here?"
+  prompt="Toggle to see which version makes the compiler happy."
+  options={[
+    {
+      id: "broken",
+      label: "Broken",
+      display: (
+        <pre className="text-text-primary text-xs whitespace-pre">{`function greet(user: { name: string }) {
+  return "Hi, " + user.nme;
+}`}</pre>
+      ),
+      explanation: "TypeScript errors on user.nme — there's no 'nme' property, only 'name'. Without TS, this would silently log 'Hi, undefined' in production. With TS, you see the red squiggle as you type.",
+    },
+    {
+      id: "fixed",
+      label: "Fixed",
+      display: (
+        <pre className="text-text-primary text-xs whitespace-pre">{`function greet(user: { name: string }) {
+  return "Hi, " + user.name;
+}`}</pre>
+      ),
+      explanation: "Compiles, runs, works. Cost of fixing: 5 seconds. Cost of finding this bug in production: hours.",
+    },
+  ]}
+/>
+
+## Try it: type-aware logic
+
+<EditableSnippet
+  title="Compute a user's display name"
+  prompt={`Write displayName(user) that returns user.nickname if set, otherwise user.name. The function should handle both shapes — assume nickname is optional ("" or undefined means not set).`}
+  functionName="displayName"
+  starterCode={`function displayName(user) {
+  // TODO
+  return user.name;
+}`}
+  solutionCode={`function displayName(user) {
+  if (user.nickname && user.nickname.trim() !== "") {
+    return user.nickname;
+  }
+  return user.name;
+}`}
+  testCases={[
+    { label: "no nickname", args: [{ name: "Travis" }], expected: "Travis" },
+    { label: "empty nickname", args: [{ name: "Travis", nickname: "" }], expected: "Travis" },
+    { label: "with nickname", args: [{ name: "Travis", nickname: "Tank" }], expected: "Tank" },
+    { label: "whitespace nickname", args: [{ name: "Travis", nickname: "   " }], expected: "Travis" },
+  ]}
+/>
+
+## What you can do with this knowledge
+
+When you spot a TypeScript error, *read it* — TS error messages are wordy but precise. They almost always tell you the exact mismatch ("expected `string | Date`, got `number`"). Resist the urge to slap `any` on something to make the error go away; nine times out of ten the compiler is catching a real bug.

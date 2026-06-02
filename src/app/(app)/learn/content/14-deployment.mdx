@@ -1,0 +1,98 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+import ToggleSandbox from "../components/ToggleSandbox";
+
+Deploying isn't "push to GitHub and pray." DiceRollers has a 5-phase pipeline scripted under `scripts/deploy/`, designed so that **migrations land safely before code that depends on them** and **production is always provable**.
+
+## The production stack
+
+- **GitHub** — the source of truth. Every change goes through a PR to `main`.
+- **Vercel** — hosts the Next.js app, builds it on every push, auto-deploys `main` to `diceroll.today`.
+- **Supabase (linked project)** — the production Postgres + Auth + Storage. Migrations live in `supabase/migrations/`.
+
+<DataFlowDiagram
+  chart={`flowchart TD
+    A[Feature branch] --> B[Preflight: pull main, check migration drift]
+    B --> C[Develop: write code + SQL migrations locally]
+    C --> D[Pre-PR gates: tsc + lint + build + types]
+    D --> E["Migrate production DB<br/>(supabase db push --linked)"]
+    E --> F[Push branch + open PR]
+    F --> G[Preview build green on Vercel]
+    G --> H[Squash-merge to main]
+    H --> I[Production deploy auto-triggers]
+    I --> J[Postdeploy: poll /api/health until READY]
+  `}
+  caption="The 5 phases as one pipeline. The migrate-before-merge order is the safety hinge."
+/>
+
+## Why migrations ship BEFORE code
+
+This is the rule that prevents most deploy disasters. Imagine you merge code that does `SELECT new_column FROM rolls`, but the migration adding `new_column` hasn't run yet. Production breaks the moment Vercel switches traffic over.
+
+So the order is:
+
+1. Apply migrations to production DB.
+2. Verify everything still works (the migration was additive and safe).
+3. *Then* merge the code that uses the new column.
+
+If the migration fails, you abort *before* merging anything. Code never references columns that don't exist.
+
+## The five scripts
+
+<AnnotatedCode
+  language="bash"
+  code={`scripts/deploy/preflight.sh   # Phase 1: pull main, check migration drift (read-only)
+scripts/deploy/prepush.sh     # Phase 3: tsc + lint + build + type regen
+scripts/deploy/migrate.sh     # Phase 4a: supabase db push --linked
+scripts/deploy/merge.sh       # Phase 4b-d: push, PR, preview gate, squash-merge
+scripts/deploy/postdeploy.sh  # Phase 5: wait for READY + curl /api/health
+scripts/deploy/ship.sh        # Runs all of the above in order`}
+  annotations={[
+    {
+      lines: 1,
+      title: "Phase 1 is read-only",
+      body: "Preflight never mutates anything. It just pulls origin/main and runs the migration drift check so you know whether your local SQL files have fallen behind the remote schema_migrations table. This is the script you can safely run anytime to check status.",
+    },
+    {
+      lines: 3,
+      title: "Pre-PR gates are non-negotiable",
+      body: "tsc, lint, build, types regen — all four must pass before push. CLAUDE.md is explicit: 'All four pre-PR gates must pass before pushing.' Skipping any of these in the name of speed has caused most of the broken deploys this app has ever had.",
+    },
+    {
+      lines: 5,
+      title: "Postdeploy is verification, not hope",
+      body: "It hits /api/health (defined in src/app/api/health/route.ts) until it returns 200 and includes the new deployment's ID. That proves the new build is live and serving traffic — not just that Vercel claims success.",
+    },
+  ]}
+/>
+
+## Multi-session migration drift
+
+There's a wrinkle worth knowing: migrations sometimes get applied from different sessions (Studio UI, a separate Claude session, etc.). When that happens, the local `supabase/migrations/` files can lag behind what's actually in production.
+
+The preflight script catches this by reading the remote `schema_migrations` table and comparing it to your local files. If something's missing locally, it tells you to pull or regenerate before you do anything destructive.
+
+<ToggleSandbox
+  title="A migration would drop a column. How do you ship it safely?"
+  prompt="Drops are the most dangerous DB change."
+  options={[
+    {
+      id: "wrong",
+      label: "Ship code + migration together",
+      display: <code className="text-text-primary text-sm">High risk.</code>,
+      explanation: "If the migration fails mid-way (timeout, lock, partial write), code is already merged that may reference a half-existing schema. Recovery is painful.",
+    },
+    {
+      id: "right",
+      label: "Stop reading first, then drop later",
+      display: <code className="text-text-primary text-sm">Safer in two steps.</code>,
+      explanation: "PR 1: change code to stop referencing the column; merge and let it deploy. PR 2: migration drops the column. Production is always in a consistent state. This is the same logic as the migrate-before-merge rule, just inverted for removals.",
+    },
+  ]}
+/>
+
+## What you can do with this knowledge
+
+When planning a feature, separate **schema changes** from **code changes** in your head before you start. Ask: *what migration goes first?* That single question prevents most of the dangerous deploy patterns. If the answer is "none — code-only," even better, you can ship a tiny PR fast.
+
+And: **never run a migration in production without preflight first**, even if you're "sure" nothing has drifted. The whole pipeline exists because being sure has burned this app before.

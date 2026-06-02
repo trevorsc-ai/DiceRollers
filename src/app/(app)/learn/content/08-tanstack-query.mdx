@@ -1,0 +1,141 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import ToggleSandbox from "../components/ToggleSandbox";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+
+TanStack Query (formerly React Query) is the library that manages **every piece of server data** in this app's client side. CLAUDE.md is dead serious about this: no `useEffect(() => { fetch... })`, no `useState` to hold loading/error flags. There's exactly one tool for fetching data, and this is it.
+
+## What problem it solves
+
+Before TanStack Query, you'd write something like this in every component:
+
+<AnnotatedCode
+  language="tsx"
+  code={`function FeedView() {
+  const [rolls, setRolls] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch("/api/rolls")
+      .then((r) => r.json())
+      .then(setRolls)
+      .catch(setError)
+      .finally(() => setLoading(false));
+  }, []);
+  // ...
+}`}
+  annotations={[
+    {
+      lines: [2, 4],
+      title: "Three pieces of state for one fetch",
+      body: "Every screen that fetches data carries the same trio. Tedious, error-prone, easy to forget one.",
+    },
+    {
+      lines: [6, 13],
+      title: "Refetching is up to you",
+      body: "If two components on the same page both need this data, you fetch twice. If the user goes off-tab and back, the data is stale and you don't know it. If they save a roll, this useEffect has no idea the list needs to refresh.",
+    },
+  ]}
+/>
+
+## What TanStack Query gives you
+
+A **cache** with a key, a **status** per key, and a **refresh** mechanism. You ask for `["rolls"]` and you get back the data, whether it's loading, when it last refetched, and what to do if it goes stale.
+
+<AnnotatedCode
+  language="tsx"
+  code={`function FeedView() {
+  const supabase = createClient();
+  const { data: rolls, isLoading, error } = useQuery({
+    queryKey: rollsQueryKey(),
+    queryFn: () => fetchRolls(supabase),
+  });
+  // ...
+}`}
+  annotations={[
+    {
+      lines: 4,
+      title: "queryKey is the cache identity",
+      body: "Anything with the same key reads from the same cache entry. So if a Settings page and the BottomNav both ask for the current user, they share one request, not two. Keys are arrays so they can carry params: ['rolls', userId, 'page', 1].",
+    },
+    {
+      lines: 5,
+      title: "queryFn is just the fetch",
+      body: "A plain async function that returns the data. No setState, no try/catch — TanStack Query handles all that.",
+    },
+    {
+      lines: 3,
+      title: "What you get back",
+      body: "data is undefined until loaded. isLoading is true during the first fetch. error holds whatever threw. Plus a bunch of other goodies: isFetching, refetch(), dataUpdatedAt, etc.",
+    },
+  ]}
+/>
+
+## The convention this app uses
+
+Every query has its key and fetch function in a shared file under `src/lib/queries/`:
+
+<AnnotatedCode
+  filename="src/lib/queries/rolls.ts (essence)"
+  language="ts"
+  code={`import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/types/database";
+
+export const rollsQueryKey = (userId?: string) =>
+  userId ? (["rolls", userId] as const) : (["rolls"] as const);
+
+export async function fetchRolls(
+  supabase: SupabaseClient<Database>,
+  userId?: string,
+) {
+  const q = supabase.from("rolls").select("*").order("created_at", { ascending: false });
+  if (userId) q.eq("user_id", userId);
+  const { data, error } = await q;
+  if (error) throw error;
+  return data;
+}`}
+  annotations={[
+    {
+      lines: [4, 5],
+      title: "Key factory",
+      body: "A function, not a constant. Because the key depends on params (which user are we querying?), the factory ensures the same params always produce the same key. 'as const' keeps the array's type narrow so TS knows exactly what shape it is.",
+    },
+    {
+      lines: [7, 16],
+      title: "Fetch function takes a SupabaseClient",
+      body: "Crucially, fetchRolls doesn't import a Supabase client itself — it accepts one. That's how the same function works on the server (using the server client) AND on the client (using the browser client). One source of truth for how to fetch rolls.",
+    },
+  ]}
+/>
+
+This pattern shows up so often in CLAUDE.md it's worth memorizing: **query key factory + fetch function that takes a client**. That's the unit of the data layer here.
+
+<ToggleSandbox
+  title="Which superpower does TanStack Query give you?"
+  prompt="Pick the scenario most relevant to you."
+  options={[
+    {
+      id: "dedupe",
+      label: "Two components, one query",
+      display: <code className="text-text-primary text-sm">One network request, not two.</code>,
+      explanation: "If BottomNav and FeedView both ask for rolls() with the same key, TanStack Query dedupes — it fires one request and shares the result. Building 'good defaults' for things you would otherwise easily get wrong is the whole point.",
+    },
+    {
+      id: "invalidate",
+      label: "User saves a new roll",
+      display: <code className="text-text-primary text-sm">queryClient.invalidateQueries(['rolls'])</code>,
+      explanation: "After a mutation, you tell TanStack Query 'the rolls cache is stale.' Every component reading that key automatically refetches in the background. No prop-drilling, no manual refresh-the-list calls.",
+    },
+    {
+      id: "focus",
+      label: "User tabs away and back",
+      display: <code className="text-text-primary text-sm">Automatic refresh.</code>,
+      explanation: "refetchOnWindowFocus is on by default. Browsing back after lunch and finding stale data is one of the most annoying UX papercuts; this fixes it without any work on your part.",
+    },
+  ]}
+/>
+
+## What you can do with this knowledge
+
+Whenever you need fresh data on the client side, the answer is `useQuery`. If you're tempted to grab data once with useEffect, stop — that's exactly the case the team has agreed not to allow, because it consistently produces bugs you only catch in production. The query keys file in `src/lib/queries/` is the place to look first; the function you need may already exist.

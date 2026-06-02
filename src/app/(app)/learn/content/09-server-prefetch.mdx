@@ -1,0 +1,90 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+
+If TanStack Query is the client-side cache, and the server can already talk to the database directly... how do those two worlds meet? The answer is **hydration**: the server pre-fills the cache, ships it embedded in the HTML, and the client picks up where the server left off.
+
+That's why pages in this app load fast and don't flicker.
+
+## The flow
+
+<DataFlowDiagram
+  chart={`flowchart TD
+    A["page.tsx (server)<br/>create a QueryClient"] --> B["prefetchQuery({ rollsQueryKey(), fetchRolls })"]
+    B --> C["dehydrate(queryClient)<br/>serialize cache to JSON"]
+    C --> D["&lt;HydrationBoundary&gt; wraps the client view"]
+    D --> E["Browser receives HTML +<br/>embedded cache JSON"]
+    E --> F["FeedView client component<br/>useQuery(rollsQueryKey(), fetchRolls)"]
+    F --> G["Cache already has data → renders instantly, no spinner"]
+  `}
+  caption="The same query key on both sides is what lets the handoff work."
+/>
+
+## The template
+
+This is the pattern lifted right from CLAUDE.md:
+
+<AnnotatedCode
+  filename="src/app/(app)/feed/page.tsx (sketch)"
+  language="tsx"
+  code={`import { HydrationBoundary, dehydrate } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/server";
+import { createQueryClient } from "@/lib/queryClient";
+import { rollsQueryKey, fetchRolls } from "@/lib/queries/rolls";
+import FeedView from "./FeedView";
+
+export default async function FeedPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const queryClient = createQueryClient();
+  await queryClient.prefetchQuery({
+    queryKey: rollsQueryKey(),
+    queryFn: () => fetchRolls(supabase),
+  });
+
+  return (
+    <HydrationBoundary state={dehydrate(queryClient)}>
+      <FeedView userId={user.id} />
+    </HydrationBoundary>
+  );
+}`}
+  annotations={[
+    {
+      lines: 12,
+      title: "A fresh QueryClient per request",
+      body: "Each request gets its own brand-new cache, so two users hitting the page at the same time don't see each other's data. createQueryClient is a tiny factory in src/lib/queryClient.ts.",
+    },
+    {
+      lines: [13, 16],
+      title: "Same key, same fetch fn as the client",
+      body: "This is the crucial bit. The server pre-fills the cache under rollsQueryKey() using fetchRolls. When the client component does useQuery({ queryKey: rollsQueryKey(), queryFn: () => fetchRolls(...) }), it finds the cache already populated. No double fetch.",
+    },
+    {
+      lines: 19,
+      title: "dehydrate serializes the cache to JSON",
+      body: "Next.js embeds this JSON inside the HTML. When the browser loads the page, the JSON becomes the initial state of the client-side QueryClient.",
+    },
+    {
+      lines: 20,
+      title: "Pass auth state down as props",
+      body: "user.id flows in as a prop. The client doesn't re-fetch the user — server has already done it. CLAUDE.md is explicit: 'never re-fetch auth.getUser() in the client when the server already has it.'",
+    },
+  ]}
+/>
+
+## Why this matters
+
+Without hydration, your page would render once on the server (with the data), then re-render on the client (without the data, with a spinner), then re-render again when the client finally finishes its own fetch. Users see a flash, an empty state, then content. That's the classic "Single Page App" UX papercut.
+
+With hydration, the server-rendered HTML already includes the rendered list. The client picks up the same cache, sees data is fresh, and skips fetching entirely.
+
+## A subtle gotcha
+
+The fetch function has to be **isomorphic** — same code works on server and client. That's why `fetchRolls(supabase)` takes the client as an argument. If you accidentally use `createClient` from `@/lib/supabase/server` inside a fetch function called from the client, you'll get a build error (or worse, a runtime error in the browser).
+
+This is why CLAUDE.md insists: query keys and fetch functions live in `src/lib/queries/`, and the fetch fn ALWAYS accepts a `SupabaseClient`. That single convention is what makes server + client hydration safe.
+
+## What you can do with this knowledge
+
+When a page feels slow on first load, ask: *is the server prefetching the data this page needs?* If not, add a `prefetchQuery` block. The cost is one extra await on the server (it would've happened anyway on the client); the win is no client-side spinner.
