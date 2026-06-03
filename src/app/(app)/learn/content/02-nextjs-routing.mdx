@@ -1,0 +1,86 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+
+Next.js uses **the file system as the router**. The folder structure under `src/app/` is the URL structure of your app. No router config, no list of routes — just folders and a couple of magic filenames.
+
+## The magic filenames
+
+| File | Job |
+|---|---|
+| `page.tsx` | The actual page shown at this URL. |
+| `layout.tsx` | Wraps every page in this folder and its children. |
+| `route.ts` | An API endpoint (no UI). |
+| `loading.tsx` | Shown while a server component is fetching. |
+| `not-found.tsx` | Shown when something 404s. |
+
+A folder *without* a `page.tsx` is just organization — it doesn't become a URL.
+
+## Folders that don't appear in URLs
+
+You'll notice `src/app/(app)/` has parentheses around it. That's a **route group** — a folder that exists purely for code organization. Its name does NOT appear in the URL.
+
+<DataFlowDiagram
+  chart={`flowchart TD
+    A["src/app/(app)/roll/page.tsx"] --> U["/roll"]
+    B["src/app/(app)/feed/page.tsx"] --> V["/feed"]
+    C["src/app/(app)/admin/users/page.tsx"] --> W["/admin/users"]
+    D["src/app/login/page.tsx"] --> X["/login"]
+  `}
+  caption="How files become URLs. The (app) wrapper is invisible — it exists so all logged-in pages can share one layout."
+/>
+
+That's why `/roll` works even though the file lives at `src/app/(app)/roll/page.tsx`. The `(app)` route group attaches the shared `AppLayout` (with the bottom nav, auth check, etc.) to every page inside it, without polluting the URL.
+
+## Dynamic segments
+
+Square brackets in a folder name make a route dynamic. For this training tool we used `[moduleId]`:
+
+<AnnotatedCode
+  filename="src/app/(app)/learn/[moduleId]/page.tsx"
+  language="tsx"
+  code={`export default async function ModulePage({
+  params,
+}: {
+  params: { moduleId: string };
+}) {
+  const mod = getModule(params.moduleId);
+  if (!mod) notFound();
+  // ...
+}`}
+  annotations={[
+    {
+      lines: 1,
+      title: "The folder name [moduleId] becomes a parameter",
+      body: "Because the folder is literally named [moduleId], any URL like /learn/anything-here matches this page. The value 'anything-here' arrives as params.moduleId.",
+    },
+    {
+      lines: [3, 5],
+      title: "params is automatically passed in",
+      body: "Next.js gives every page a params prop. The shape is whatever dynamic segments are in the path. With [moduleId], you get { moduleId: string }.",
+    },
+    {
+      lines: 8,
+      title: "Always handle the 'not found' case",
+      body: "Because anyone can type any URL, the lookup might fail. notFound() throws — Next.js catches it and renders not-found.tsx (or the closest one up the tree).",
+    },
+  ]}
+/>
+
+## A tour of DiceRollers' routes
+
+Every meaningful URL in the app maps to one folder:
+
+- `/roll` → `src/app/(app)/roll/`
+- `/feed` → `src/app/(app)/feed/`
+- `/history` → `src/app/(app)/history/`
+- `/stats` → `src/app/(app)/stats/`
+- `/achievements` → `src/app/(app)/achievements/`
+- `/admin/*` → `src/app/(app)/admin/`
+- `/login` → `src/app/login/`
+- `/api/rolls` → `src/app/api/rolls/route.ts`
+
+Login lives *outside* `(app)` because logged-out users hit it — it doesn't need the auth gate and bottom nav.
+
+## What you can do with this knowledge
+
+Want a new page? Make a folder under `(app)`, drop a `page.tsx` in it, and it's live. Want it gated behind admin? Put it under `(app)/admin/` — the layout there already does the check for you.

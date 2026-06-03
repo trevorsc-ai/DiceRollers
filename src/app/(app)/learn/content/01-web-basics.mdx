@@ -1,0 +1,63 @@
+import DataFlowDiagram from "../components/DataFlowDiagram";
+import ToggleSandbox from "../components/ToggleSandbox";
+
+A web app is just three things talking to each other: a **browser**, a **server**, and a **database**. Everything else — frameworks, deployment pipelines, all of it — is plumbing around that core triangle.
+
+Here's the trip a single click in DiceRollers makes:
+
+<DataFlowDiagram
+  chart={`flowchart LR
+    B[Browser<br/>Your phone] -->|click ROLL| S[Server<br/>Vercel]
+    S -->|SQL| D[(Database<br/>Supabase Postgres)]
+    D -->|rows| S
+    S -->|HTML / JSON| B
+  `}
+  caption="One click — three machines."
+/>
+
+## The three players
+
+**The browser** runs on your phone or computer. It downloads HTML, CSS, and JavaScript, then renders the page you see. When you tap a button, the browser decides whether to handle it locally (toggle a menu) or send it to the server (save a roll).
+
+**The server** runs somewhere in the cloud — for DiceRollers, on Vercel. It receives requests, talks to the database, sometimes does heavy computation (like figuring out which achievements you just earned), and sends a response back.
+
+**The database** is where the real data lives — your rolls, your friends, the achievement records. For us, that's Postgres, managed by Supabase. The server is the only thing that ever speaks directly to the database.
+
+<ToggleSandbox
+  title="Where does each piece of work happen?"
+  prompt="Tap a scenario to see where it runs."
+  options={[
+    {
+      id: "toggle-menu",
+      label: "Open the bottom menu",
+      display: <code className="text-text-primary text-sm">Pure browser work. No server, no database. Instant.</code>,
+      explanation: "UI state like 'is this menu open' is just a JavaScript variable in the browser. Sending a request to the server for this would be slow and pointless.",
+    },
+    {
+      id: "save-roll",
+      label: "Save a roll",
+      display: <code className="text-text-primary text-sm">Browser → Server → Database → Server → Browser.</code>,
+      explanation: "Browser POSTs the dice values. The server validates, inserts into Postgres, runs the achievements engine, and responds. The browser then updates the UI with whatever the server returned.",
+    },
+    {
+      id: "show-feed",
+      label: "Show the feed",
+      display: <code className="text-text-primary text-sm">Browser → Server (read DB) → Browser (render).</code>,
+      explanation: "The server reads the latest rolls from Postgres, hands JSON back to the browser, and the browser renders RollCards. We even do part of this on the server before the page reaches you, to make the first load feel instant.",
+    },
+  ]}
+/>
+
+## Where each of these lives in this repo
+
+Open the file tree. Every box in the diagram above corresponds to a folder:
+
+- **Browser code** lives in everything ending with `View.tsx` or marked `"use client"` at the top. This is the React UI your phone runs.
+- **Server code** lives in `page.tsx` files (without `"use client"`), and in `src/app/api/*/route.ts` (the API endpoints).
+- **Database access** is wrapped by `src/lib/supabase/` (one client for the browser side, another for the server) and the SQL migrations in `supabase/migrations/`.
+
+That split — where each piece of code runs — is the first big mental model. Next module: how URLs find their way into the right folder.
+
+## What you can do with this knowledge
+
+When something feels slow, ask: *which leg of the trip is the problem?* Is the browser doing too much (re-rendering, big bundle)? Is the server doing too much (slow query, expensive computation)? Is the database the bottleneck (missing index)? "It's slow" is unsolvable; "the database query is slow" has obvious next steps.

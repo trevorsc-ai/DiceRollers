@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
-import { Shield, List, TrendingUp } from "lucide-react";
+import { Shield, List, TrendingUp, GraduationCap } from "lucide-react";
 import Link from "next/link";
 
 interface UserRow {
@@ -161,6 +161,16 @@ export default function AdminPage() {
           <div>
             <p className="text-text-primary font-medium">Manage Menu</p>
             <p className="text-text-secondary text-xs">Edit drink names and logos</p>
+          </div>
+        </Link>
+        <Link
+          href="/learn"
+          className="flex items-center gap-3 bg-surface rounded-2xl p-4 border border-surface-2 hover:border-neon-pink/40 transition-colors"
+        >
+          <GraduationCap className="w-5 h-5 text-neon-pink" />
+          <div>
+            <p className="text-text-primary font-medium">Learn</p>
+            <p className="text-text-secondary text-xs">Interactive walkthrough of this app&apos;s code</p>
           </div>
         </Link>
       </div>

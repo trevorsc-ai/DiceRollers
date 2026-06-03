@@ -1,0 +1,100 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+
+Time to put it all together. Let's walk one tap of "SAVE ROLL" through the entire stack.
+
+## The complete journey
+
+<DataFlowDiagram
+  chart={`flowchart TD
+    A["Browser: DiePicker<br/>(client component)"] --> B[User taps SAVE ROLL]
+    B --> C["POST /api/rolls<br/>{ white: 5, red: 5 }"]
+    C --> D["src/app/api/rolls/route.ts<br/>(server)"]
+    D --> E[Validate auth via server client]
+    E --> F[Insert into rolls table]
+    F --> G["Call achievements engine<br/>(processAchievements)"]
+    G --> H[Bulk fetch: rolls + user_achievements]
+    H --> I["Run 40+ checks in memory"]
+    I --> J[Batch INSERT new user_achievements]
+    J --> K["Respond: { roll, newAchievements: [...] }"]
+    K --> L["Client: useMutation onSuccess"]
+    L --> M[Invalidate query caches]
+    L --> N["Store new_achievements in localStorage<br/>→ bottom nav dot"]
+    L --> O["DoublesConfetti / MalortCelebration"]
+  `}
+  caption="Every layer of the stack contributes to one save."
+/>
+
+## The starring file: `/api/rolls/route.ts`
+
+Open `src/app/api/rolls/route.ts`. It's the single endpoint that handles the most important user action in the app.
+
+<AnnotatedCode
+  filename="src/app/api/rolls/route.ts (essence)"
+  language="ts"
+  code={`export async function POST(request: Request) {
+  const body = await request.json();
+
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return new Response("Unauthorized", { status: 401 });
+
+  const { data: roll, error } = await supabase
+    .from("rolls")
+    .insert({ user_id: user.id, white: body.white, red: body.red, /* ... */ })
+    .select()
+    .single();
+  if (error) return new Response(error.message, { status: 400 });
+
+  const newAchievements = await processAchievements({
+    supabase,
+    user,
+    roll,
+  });
+
+  return NextResponse.json({ roll, newAchievements });
+}`}
+  annotations={[
+    {
+      lines: [4, 6],
+      title: "Auth on the server",
+      body: "We don't trust whatever the client says about who's logged in. The server reads cookies via the server client and asks Supabase directly. If there's no user, 401 — end of story.",
+    },
+    {
+      lines: [8, 13],
+      title: "Insert + select in one round trip",
+      body: ".insert(...).select().single() does the INSERT and returns the inserted row in one trip. The .single() at the end says 'I expect exactly one row back' — perfect for the just-inserted record.",
+    },
+    {
+      lines: [15, 19],
+      title: "Achievements engine runs synchronously",
+      body: "It would be tempting to fire-and-forget this in the background. We don't — because the response needs to tell the client which badges to celebrate. Synchronous keeps the UX immediate and accurate; the bulk-fetch pattern keeps it fast.",
+    },
+    {
+      lines: 21,
+      title: "Respond with everything the client needs",
+      body: "The roll AND the achievement IDs. The client uses both: the roll updates the feed cache; the achievements drive confetti and update the 'NEW' dot on the bottom nav.",
+    },
+  ]}
+/>
+
+## What the client does on success
+
+The Roll page wraps the API call in `useMutation`. Here's the celebration logic in plain English:
+
+1. **Invalidate caches** — `useQuery({ queryKey: rollsQueryKey() })` consumers refetch in the background.
+2. **Store newly-earned achievement IDs in localStorage** — read by BottomNav's `checkDot()` to light up the pink notification dot on the Achievements tab.
+3. **Fire visual celebrations** — DoublesConfetti for doubles, MalortCelebration for a Malört roll, DailyDoubleCelebration if today's rotating logo aligns.
+4. **Reset the dice picker for the next roll.**
+
+That's why a single tap produces a chain of effects — the architecture is deliberately set up so each effect is a small, independent piece of code, all triggered by the same API success.
+
+## Failure modes worth knowing
+
+- **Network drops mid-save.** The optimistic celebration would be wrong, so we *don't* go optimistic on saves — we wait. The user briefly sees a disabled button until the network responds. Acceptable trade-off for correctness.
+- **Achievements engine throws.** We treat this as fatal for the request — better to fail the save than to silently miss awarding badges. The error surfaces in the response.
+- **Two saves in flight at once.** The button is disabled while `mutation.isPending` is true. No double-submit possible.
+
+## What you can do with this knowledge
+
+When planning a new "user takes an action that affects multiple things" feature, mirror this shape: one API route handles the write, one engine derives all the consequences synchronously, one response packages everything the client needs. Distributed side-effects (multiple endpoints, queues, etc.) are tempting but usually overkill for an app at this scale.

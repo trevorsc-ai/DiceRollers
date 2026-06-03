@@ -1,0 +1,131 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+import ToggleSandbox from "../components/ToggleSandbox";
+import EditableSnippet from "../components/EditableSnippet";
+
+The achievements engine is the most performance-sensitive code in DiceRollers. It runs on **every single roll** — every time anyone saves dice, this code decides what badges they just earned. If it gets slow or noisy, every roll feels slow.
+
+CLAUDE.md is blunt: this is the **hot path**. Treat it that way.
+
+## The rule that shapes everything
+
+> **One bulk fetch up front, then derive everything from it in memory. Do not add new individual count queries.**
+
+There are 40+ achievements in this app. The naive approach would be: for each achievement, run a separate Postgres query (`SELECT COUNT(*) WHERE ...`). With 40 achievements, that's 40 round trips on every roll. The user would feel it.
+
+The engine does the opposite: **one big query** pulls in everything the engine could possibly need (the user's rolls, their existing achievements, twinsies data, punch card progress). Then every check is a pure JS calculation over that in-memory data. 1 query, 40 checks.
+
+<DataFlowDiagram
+  chart={`flowchart TD
+    A[API: POST /api/rolls] --> B[Insert roll row]
+    B --> C[Call processAchievements]
+    C --> D[ONE bulk fetch:<br/>rolls + user_achievements + extras]
+    D --> E[Run 40 checks in memory]
+    E --> F[Batch INSERT new user_achievements]
+    F --> G[Respond with newly-earned IDs]
+    G --> H[Client triggers celebration UI]
+  `}
+  caption="One query, many checks. The naive design would be 40 queries — and feel like it."
+/>
+
+## The two helpers that prevent regressions
+
+<AnnotatedCode
+  filename="src/lib/achievements.ts (conceptual)"
+  language="ts"
+  code={`// For simple "did the thing yet?" achievements
+queueCompletion(A.YOUR_ID);
+
+// For counter-based ones (X out of Y)
+queueCounter(A.YOUR_ID, progress, target, progressDetail?);`}
+  annotations={[
+    {
+      lines: 2,
+      title: "queueCompletion",
+      body: "Adds a 'this user just earned this achievement, IF they don't already have it' entry to a batch. After all checks run, the batch inserts in a single INSERT...ON CONFLICT statement. One write, regardless of how many achievements were earned.",
+    },
+    {
+      lines: 5,
+      title: "queueCounter",
+      body: "For badges with progress: 'Rolled 100 doubles' is current = 84, target = 100. Updates the user_achievements row's progress. When current >= target, the badge unlocks.",
+    },
+  ]}
+/>
+
+## Why string IDs are forbidden
+
+You'll see this in CLAUDE.md too: **never hardcode achievement IDs as strings**. Use the constants from `src/lib/achievementIds.ts`.
+
+<ToggleSandbox
+  title="Which version survives a rename?"
+  prompt="Picture renaming the achievement to 'GENZ' (with a Z) six months from now."
+  options={[
+    {
+      id: "string",
+      label: "String literal",
+      display: (
+        <pre className="text-text-primary text-xs whitespace-pre">{`queueCompletion("GEN_ALPHA");`}</pre>
+      ),
+      explanation: "If you rename the constant, this string KEEPS WORKING SILENTLY — until you realize awards stopped firing in production. There's no compiler check, no autocomplete to save you. Multiply by 40 achievements and you have a maintenance nightmare.",
+    },
+    {
+      id: "constant",
+      label: "Constant from achievementIds.ts",
+      display: (
+        <pre className="text-text-primary text-xs whitespace-pre">{`queueCompletion(A.GEN_ALPHA);`}</pre>
+      ),
+      explanation: "Rename A.GEN_ALPHA → A.GEN_Z and TypeScript flags every caller. Refactor is safe. You also get autocomplete listing every achievement, and the DB seed migration's identifiers stay aligned with code through one source of truth.",
+    },
+  ]}
+/>
+
+## Adding a new achievement (the recipe)
+
+Per CLAUDE.md:
+
+1. Add the ID constant to `src/lib/achievementIds.ts` first.
+2. Add a matching row in the DB seed migration so the achievement exists in `achievements`.
+3. Inside `processAchievements`, add your check using `queueCompletion` or `queueCounter`. **Derive** your condition from the bulk-fetched data — don't run a new query.
+4. If it's a repeatable achievement with a side table (punch card, twinsies), it gets its own dedicated write — that's the documented exception.
+
+## Practice: check the logic shape
+
+<EditableSnippet
+  title="Detect 'first doubles' achievement"
+  prompt="Given the user's existing rolls (already loaded) and the new roll just saved, return true if this is the user's FIRST doubles roll ever (and the new roll IS a doubles)."
+  functionName="isFirstDoubles"
+  starterCode={`function isFirstDoubles(existingRolls, newRoll) {
+  // existingRolls is an array of all this user's rolls EXCLUDING the new one
+  // newRoll has { is_doubles: boolean, ... }
+  // TODO
+  return false;
+}`}
+  solutionCode={`function isFirstDoubles(existingRolls, newRoll) {
+  if (!newRoll.is_doubles) return false;
+  return existingRolls.every(r => !r.is_doubles);
+}`}
+  testCases={[
+    {
+      label: "new roll isn't doubles",
+      args: [
+        [{ is_doubles: false }, { is_doubles: false }],
+        { is_doubles: false },
+      ],
+      expected: false,
+    },
+    {
+      label: "first ever doubles",
+      args: [[{ is_doubles: false }, { is_doubles: false }], { is_doubles: true }],
+      expected: true,
+    },
+    {
+      label: "already had doubles",
+      args: [[{ is_doubles: true }, { is_doubles: false }], { is_doubles: true }],
+      expected: false,
+    },
+  ]}
+/>
+
+## What you can do with this knowledge
+
+When planning a new achievement, ask first: *can this be derived from data the engine already loads?* If yes, add a check next to the others. If no — if the rule genuinely needs new data — extend the bulk fetch (carefully), don't sneak in a per-achievement query. That preserves the performance the engine was designed around.

@@ -1,0 +1,126 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import ToggleSandbox from "../components/ToggleSandbox";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+
+A **mutation** is anything that changes data on the server: like a roll, edit a profile, save a new roll, delete a comment. TanStack Query handles these with `useMutation`, and the killer feature is **optimistic updates** — the UI flips state *instantly*, before the network round trip, and only rolls back if the server says no.
+
+That's why the like button feels instant. There's no spinner, no flicker, no waiting for Supabase.
+
+## The basic shape
+
+<AnnotatedCode
+  language="tsx"
+  code={`const likeMutation = useMutation({
+  mutationFn: async (rollId: string) => {
+    const { error } = await supabase.from("likes").insert({ roll_id: rollId });
+    if (error) throw error;
+  },
+  onSuccess: () => {
+    queryClient.invalidateQueries({ queryKey: rollsQueryKey() });
+  },
+});
+
+// In the UI:
+<button onClick={() => likeMutation.mutate(roll.id)}>Like</button>`}
+  annotations={[
+    {
+      lines: [2, 5],
+      title: "mutationFn does the actual work",
+      body: "Just an async function. Throwing inside it puts the mutation into error state; returning a value gives you data in onSuccess.",
+    },
+    {
+      lines: [6, 8],
+      title: "Invalidate after success",
+      body: "After the like is saved, the rolls list is stale (its like count is now wrong). invalidateQueries marks the cache as needing a refetch — every component reading rollsQueryKey will refresh in the background.",
+    },
+  ]}
+/>
+
+This is the simple version: tap → wait for server → refresh. It works, but it feels slow. The user sees no change for ~200ms.
+
+## Going optimistic
+
+For UI that flips state (like, follow, mark-read), we update the cache *before* the server responds, then roll back if it fails. CLAUDE.md has the exact template:
+
+<AnnotatedCode
+  language="tsx"
+  code={`const m = useMutation({
+  mutationFn: async (vars) => { /* ... */ },
+  onMutate: async (vars) => {
+    await queryClient.cancelQueries({ queryKey });
+    const previous = queryClient.getQueryData(queryKey);
+    queryClient.setQueryData(queryKey, (prev) => /* optimistic shape */);
+    return { previous };
+  },
+  onError: (_e, _v, ctx) => {
+    if (ctx?.previous) queryClient.setQueryData(queryKey, ctx.previous);
+  },
+});`}
+  annotations={[
+    {
+      lines: 4,
+      title: "Cancel in-flight queries",
+      body: "If we're optimistically writing, we don't want a stale refetch to overwrite our optimistic update. cancelQueries aborts anything currently in flight for that key.",
+    },
+    {
+      lines: 5,
+      title: "Snapshot the previous value",
+      body: "Grab whatever's in the cache right now. We'll need this if the mutation fails — it's our rollback target.",
+    },
+    {
+      lines: 6,
+      title: "Write the optimistic shape into the cache",
+      body: "Imagine the like succeeded: increment the count, add the user to liked_by, whatever the success shape would look like. Set that into the cache and React re-renders immediately — the user sees the update before the network even responds.",
+    },
+    {
+      lines: [9, 11],
+      title: "Roll back on error",
+      body: "If the server rejects (network failure, RLS error, etc.), ctx.previous holds the pre-mutation snapshot. Setting it back into the cache reverses the optimistic update. The user sees the like 'pop back off' — clear feedback that something went wrong.",
+    },
+  ]}
+/>
+
+## How it feels to the user
+
+<DataFlowDiagram
+  chart={`flowchart LR
+    T[Tap heart] --> O[onMutate: cache flips instantly]
+    O --> R[UI shows liked state - 0ms]
+    R --> N[Network round trip - 200ms]
+    N --> S{Server OK?}
+    S -->|yes| K[Stay liked, refetch in background]
+    S -->|no| F[onError: roll back, show toast]
+    style R fill:#22c55e,stroke:#22c55e
+    style F fill:#ec4899,stroke:#ec4899
+  `}
+  caption="Optimistic: the user sees the result immediately. Network is a fallback verifier, not a blocker."
+/>
+
+<ToggleSandbox
+  title="Which mutations should be optimistic?"
+  prompt="Optimistic is great — but not always the right call."
+  options={[
+    {
+      id: "like",
+      label: "Like a roll",
+      display: <code className="text-text-primary text-sm">YES — go optimistic.</code>,
+      explanation: "Simple state flip, low stakes, frequent action. The exact use case useMutation's onMutate was designed for.",
+    },
+    {
+      id: "save-roll",
+      label: "Save a roll (the main thing in the app)",
+      display: <code className="text-text-primary text-sm">NO — wait for server.</code>,
+      explanation: "Saving a roll triggers the achievements engine on the server. The server's response tells us which achievements just unlocked — info the client cannot predict locally. We need to wait for the real response to drive the celebration animations.",
+    },
+    {
+      id: "delete-account",
+      label: "Delete account",
+      display: <code className="text-text-primary text-sm">NO — wait, with a confirm.</code>,
+      explanation: "Optimistic is for low-stakes, reversible UI. Permanent destructive actions deserve a confirm dialog and a real spinner. Speed isn't the priority; clarity is.",
+    },
+  ]}
+/>
+
+## What you can do with this knowledge
+
+Whenever you build a tap-to-toggle UI in this app, reach for `useMutation` with the `onMutate` / `onError` pair. Skip optimistic when the server response carries information the client couldn't predict — that's when "real" loading state is correct.

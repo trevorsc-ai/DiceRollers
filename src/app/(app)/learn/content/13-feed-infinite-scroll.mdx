@@ -1,0 +1,116 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+import ToggleSandbox from "../components/ToggleSandbox";
+
+The feed is the most pagination-heavy page in DiceRollers — every roll ever made, oldest scroll into view as you go down. The standard approach (page numbers, "load more" button) would be ugly here. Instead we use **infinite scroll + keyset pagination**, and CLAUDE.md is very specific about how.
+
+## What "keyset" means
+
+Naive pagination uses OFFSET: "skip 20 rows, give me the next 20." Postgres has to count past those 20 every time, and worse, if a row is inserted while you're scrolling, you'll see duplicates ("oh, that's already in my list?") or skip rows.
+
+Keyset pagination uses the **last row's sort key** as the anchor: "give me 20 rows where `created_at < this_value`." No counting, no race conditions, stable as new rolls come in.
+
+<DataFlowDiagram
+  chart={`flowchart LR
+    A[Page 1: take 20, order by created_at desc] -->|last row's created_at| B[Page 2: take 20 where created_at lt that]
+    B -->|new last row's created_at| C[Page 3: take 20 where created_at lt that]
+  `}
+  caption="Each page's last row tells the next page where to start."
+/>
+
+## How TanStack Query handles it
+
+`useInfiniteQuery` is the cousin of `useQuery` for this exact pattern. You give it a `queryFn` that knows how to fetch one page, and a `getNextPageParam` that extracts the cursor from each page. Then `fetchNextPage()` does the work.
+
+<AnnotatedCode
+  language="tsx"
+  code={`const {
+  data,
+  fetchNextPage,
+  hasNextPage,
+  isFetchingNextPage,
+} = useInfiniteQuery({
+  queryKey: rollsFeedQueryKey(),
+  queryFn: ({ pageParam }) => fetchRollsPage(supabase, { cursor: pageParam }),
+  getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  initialPageParam: null,
+});
+
+const rolls = data?.pages.flatMap((p) => p.rolls) ?? [];`}
+  annotations={[
+    {
+      lines: 8,
+      title: "pageParam is the cursor",
+      body: "TanStack Query passes whatever getNextPageParam returned last time into the next queryFn call. For page 1 it's the initialPageParam (null = no cursor). For page 2 it's the last roll's created_at.",
+    },
+    {
+      lines: 9,
+      title: "How TanStack Query knows when to stop",
+      body: "When the fetch fn returns nextCursor: null (because the page had fewer than 20 rows, meaning we hit the end), getNextPageParam returns undefined, and hasNextPage flips to false. The UI hides the 'loading more' indicator.",
+    },
+    {
+      lines: 13,
+      title: "Flatten pages into one array",
+      body: "data is { pages: [page1, page2, ...] }. We flatMap to get one continuous list of rolls. React renders this naturally.",
+    },
+  ]}
+/>
+
+## Auto-loading on scroll
+
+The user shouldn't have to tap "load more." The custom hook `useScrollSentinel` watches a div near the bottom of the list and fires a callback when it enters the viewport.
+
+<AnnotatedCode
+  language="tsx"
+  code={`const sentinelRef = useScrollSentinel(() => {
+  if (hasNextPage && !isFetchingNextPage) fetchNextPage();
+});
+
+return (
+  <div>
+    {rolls.map((roll) => <RollCard key={roll.id} roll={roll} />)}
+    <div ref={sentinelRef} />
+  </div>
+);`}
+  annotations={[
+    {
+      lines: [1, 3],
+      title: "Guard against double-fires",
+      body: "IntersectionObserver can fire repeatedly while the sentinel sits at the threshold. Without hasNextPage && !isFetchingNextPage, you'd spam fetchNextPage and trigger a stack of duplicate requests.",
+    },
+    {
+      lines: 8,
+      title: "The invisible div at the bottom",
+      body: "useScrollSentinel returns a ref. Attach it to an empty div placed AFTER the list. When that div scrolls into view, the callback fires. It's a clean pattern: no scroll listeners, no math, no positioning logic — IntersectionObserver does all the heavy lifting.",
+    },
+  ]}
+/>
+
+<ToggleSandbox
+  title="Why not just OFFSET pagination?"
+  prompt="Pick a scenario and see how each handles it."
+  options={[
+    {
+      id: "perf",
+      label: "100,000 rolls in the table",
+      display: <code className="text-text-primary text-sm">OFFSET 99,980 LIMIT 20 → Postgres counts past 99,980 rows on every page load.</code>,
+      explanation: "Keyset doesn't count anything — just an indexed WHERE created_at &lt; x. Performance stays flat as the table grows.",
+    },
+    {
+      id: "drift",
+      label: "Someone saves a new roll while you scroll",
+      display: <code className="text-text-primary text-sm">OFFSET: rows shift down by 1, you see one duplicate.</code>,
+      explanation: "Keyset is anchored to a specific created_at, so new inserts at the top don't affect what page 2 returns. Stable scroll, no surprise duplicates.",
+    },
+    {
+      id: "perm",
+      label: "User deletes a roll mid-scroll",
+      display: <code className="text-text-primary text-sm">OFFSET: rows shift up by 1, you skip one entirely.</code>,
+      explanation: "Same story — keyset's anchor is the row's value, not a position number. You see exactly what's still in the table at the time of each page fetch.",
+    },
+  ]}
+/>
+
+## What you can do with this knowledge
+
+Any time you build a long list — admin user list, history, transactions — reach for `useInfiniteQuery` + `useScrollSentinel`. CLAUDE.md outright bans re-implementing this pattern from scratch, because the existing version handles all the edge cases (deduping, end-of-list detection, isFetching guards) you'd otherwise have to rediscover.

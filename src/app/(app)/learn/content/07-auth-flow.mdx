@@ -1,0 +1,116 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+
+Authentication is the single trickiest part of any web app, because it touches the browser, cookies, the server, middleware, and the database all at once. Let's walk one login from tap to redirect.
+
+## The whole journey on one diagram
+
+<DataFlowDiagram
+  chart={`flowchart TD
+    A[User taps Sign in with Google] --> B[Browser opens Google OAuth]
+    B --> C[Google redirects to /auth/callback with code]
+    C --> D[Server exchanges code for session,<br/>writes cookies]
+    D --> E[Server redirects to /roll]
+    E --> F[middleware.ts runs on every request,<br/>refreshes cookies if needed]
+    F --> G["(app)/layout.tsx calls supabase.auth.getUser()"]
+    G --> H{Logged in?}
+    H -->|no| I[redirect to /login]
+    H -->|yes| J[Render the page]
+  `}
+  caption="One login involves at least four files: the login UI, the callback route, the middleware, and the (app) layout."
+/>
+
+## Step 1: the login page itself
+
+This is just a normal page with a button. Tapping the button calls `supabase.auth.signInWithOAuth({ provider: "google" })`, which constructs the Google OAuth URL and navigates the browser there. Once Google authenticates the user, it redirects back to a callback URL on our app.
+
+## Step 2: the callback route
+
+The callback is a server-only route (no UI, just code) that exchanges a one-time code from Google for a session. The session gets stored as cookies, then the route redirects to wherever the user was going.
+
+<AnnotatedCode
+  filename="src/app/auth/callback/route.ts (conceptually)"
+  language="ts"
+  code={`export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const code = searchParams.get("code");
+
+  if (code) {
+    const supabase = await createClient();
+    await supabase.auth.exchangeCodeForSession(code);
+  }
+
+  return NextResponse.redirect(new URL("/roll", request.url));
+}`}
+  annotations={[
+    {
+      lines: [2, 3],
+      title: "Pull the code out of the URL",
+      body: "Google appends ?code=xyz... when redirecting back. We need that code to ask Supabase for a real session.",
+    },
+    {
+      lines: [5, 7],
+      title: "Exchange code → session",
+      body: "exchangeCodeForSession does two things at once: validates the code with Supabase's servers, and (because we used the server client) writes the resulting session as Set-Cookie headers on this response. The browser will store them automatically.",
+    },
+    {
+      lines: 10,
+      title: "Then redirect somewhere useful",
+      body: "Right now we always go to /roll. A more polished version could read a 'next' param so users get bounced back to whatever page they were trying to reach when we kicked them to /login.",
+    },
+  ]}
+/>
+
+## Step 3: middleware keeps the session fresh
+
+Every request to the app passes through `src/middleware.ts` *before* hitting any page. The middleware's job: read the cookies, validate the session with Supabase, and (importantly) refresh it if it's near expiry, writing new cookies back on the response.
+
+Without this, sessions would silently die after their token expired and users would get random "you're logged out" surprises.
+
+<AnnotatedCode
+  filename="src/middleware.ts (sketch)"
+  language="ts"
+  code={`import { createServerClient } from "@supabase/ssr";
+
+export async function middleware(request: NextRequest) {
+  const response = NextResponse.next({ request });
+
+  const supabase = createServerClient(URL, ANON_KEY, {
+    cookies: {
+      getAll: () => request.cookies.getAll(),
+      setAll: (toSet) =>
+        toSet.forEach(({ name, value, options }) =>
+          response.cookies.set(name, value, options)
+        ),
+    },
+  });
+
+  await supabase.auth.getUser(); // refreshes if needed
+  return response;
+}`}
+  annotations={[
+    {
+      lines: 4,
+      title: "Start with a clean response",
+      body: "NextResponse.next() means 'pass the request through unchanged.' We're not blocking anything; we're just piggy-backing on the request/response cycle to refresh cookies.",
+    },
+    {
+      lines: [6, 14],
+      title: "Plumbing cookies in both directions",
+      body: "@supabase/ssr needs a way to read cookies (from the request) and write new ones (onto the response). This adapter is the magic that keeps the session alive across server, middleware, and client.",
+    },
+    {
+      lines: 16,
+      title: "getUser() does the actual refresh",
+      body: "Under the hood, this checks the JWT, refreshes it if it's near expiry, and updates the response cookies via the adapter above. We don't care about the return value here — we're calling it for the side effect.",
+    },
+  ]}
+/>
+
+## Step 4: pages check who you are
+
+By the time a page renders, cookies are valid. The shared `(app)/layout.tsx` calls `supabase.auth.getUser()` once and either redirects to `/login` or renders the page. Inside any page under `(app)`, you can assume the user is logged in — that gate already ran.
+
+## What you can do with this knowledge
+
+When auth misbehaves — random logouts, "session not found", redirect loops — the cause is almost always in the cookie plumbing. Walk this diagram: did the callback set cookies? Is middleware refreshing them? Is the page reading them from the right client? Eliminate steps one by one and the bug surfaces fast.

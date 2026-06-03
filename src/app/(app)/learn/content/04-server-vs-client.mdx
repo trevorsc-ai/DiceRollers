@@ -1,0 +1,124 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+import ToggleSandbox from "../components/ToggleSandbox";
+
+Every component in a Next.js App Router app is either a **server component** or a **client component**. The difference is *where the code runs*, and once you internalize it, two-thirds of the surprises in this codebase disappear.
+
+## The default is server
+
+Open any `page.tsx`. Unless the very first line says `"use client"`, that file runs **only on the server**. It never ships to the browser. The user's phone never sees that JavaScript.
+
+That's actually amazing: you can directly `await` a database query in the same function that returns JSX:
+
+<AnnotatedCode
+  filename="src/app/(app)/feed/page.tsx (simplified)"
+  language="tsx"
+  code={`export default async function FeedPage() {
+  const supabase = await createClient();
+  const { data: rolls } = await supabase
+    .from("rolls")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  return <FeedView initialRolls={rolls} />;
+}`}
+  annotations={[
+    {
+      lines: 1,
+      title: "An async component",
+      body: "Server components can be async functions. The page literally waits for the database before rendering — no spinners, no useEffect, just await.",
+    },
+    {
+      lines: 2,
+      title: "Server-side Supabase client",
+      body: "Comes from @/lib/supabase/server. It reads the user's cookies on the server to know who's logged in. This client would not work in the browser — that's the point.",
+    },
+    {
+      lines: 9,
+      title: "Pass data down as props",
+      body: "FeedView is a client component (note the View suffix — that's the convention here). Server hands it the initial data; from there, the client takes over.",
+    },
+  ]}
+/>
+
+## When you need to be on the client
+
+Anything that needs *interactivity* — useState, onClick, useEffect, browser APIs — has to run in the browser. That's a client component. You opt in by putting `"use client"` at the top:
+
+<AnnotatedCode
+  filename="src/components/Providers.tsx (excerpt)"
+  language="tsx"
+  code={`"use client";
+
+import { QueryClientProvider } from "@tanstack/react-query";
+
+export default function Providers({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => createQueryClient());
+  return (
+    <QueryClientProvider client={queryClient}>
+      {children}
+    </QueryClientProvider>
+  );
+}`}
+  annotations={[
+    {
+      lines: 1,
+      title: "The boundary",
+      body: '"use client" tells Next.js: this file (and any client component it imports) ships JavaScript to the browser and runs there. The directive only needs to appear at the top of the boundary file, not in every nested client component.',
+    },
+    {
+      lines: 6,
+      title: "Now we can use hooks",
+      body: "useState only works in client components, because state lives in memory in the browser. Try this in a server component and Next.js will throw at build time.",
+    },
+  ]}
+/>
+
+<DataFlowDiagram
+  chart={`flowchart TD
+    A["page.tsx (server)<br/>await supabase.from('rolls')"] -->|passes data as props| B["FeedView.tsx<br/>'use client' at top"]
+    B -->|interactivity| C["onClick, useState,<br/>useQuery, etc."]
+    style A fill:#1a1a24,stroke:#22c55e
+    style B fill:#1a1a24,stroke:#ec4899
+  `}
+  caption="Green = runs on server only. Pink = runs on the user's device."
+/>
+
+## The Roll page uses both
+
+Here's the actual split in DiceRollers:
+
+- `src/app/(app)/roll/page.tsx` → server component. Checks auth, runs once per request.
+- `src/components/roll/*` → client components. Handle the die-picking interaction, the confetti, the celebration modal.
+
+The server side fetches the user, the client side handles every tap that follows.
+
+<ToggleSandbox
+  title="Which side does each thing belong on?"
+  prompt="Pick a piece of work and see where it should live."
+  options={[
+    {
+      id: "auth-check",
+      label: "Checking who's logged in",
+      display: <code className="text-text-primary text-sm">Server.</code>,
+      explanation: "Cookies live in the request. The server has them; the browser doesn't need to ask. Checking auth on the server lets us redirect to /login without ever rendering a flash of broken UI.",
+    },
+    {
+      id: "click-button",
+      label: "Reacting to a button click",
+      display: <code className="text-text-primary text-sm">Client.</code>,
+      explanation: "onClick handlers need to attach to the DOM, which only exists in the browser. Server components literally don't ship any JavaScript, so they can't react to anything.",
+    },
+    {
+      id: "fetch-list",
+      label: "Loading the initial roll list",
+      display: <code className="text-text-primary text-sm">Server (for the FIRST load) → Client (for everything after).</code>,
+      explanation: "Server fetches and embeds the first page of data in the HTML, so the user sees rolls instantly. Once interactive, the client takes over with TanStack Query for infinite scroll, refetching, mutations. Module 9 covers this 'hydration' handoff in detail.",
+    },
+  ]}
+/>
+
+## What you can do with this knowledge
+
+When designing a new page, ask: *what's the minimum that needs to be interactive?* Put everything else on the server. A page with one tiny "use client" island for a button is faster, smaller, and easier to reason about than a fully client-rendered page.

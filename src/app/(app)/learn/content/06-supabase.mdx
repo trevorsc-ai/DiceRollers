@@ -1,0 +1,81 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import DataFlowDiagram from "../components/DataFlowDiagram";
+import ToggleSandbox from "../components/ToggleSandbox";
+
+**Supabase is three things wrapped together: a Postgres database, an auth system, and a file storage layer.** All three are accessed through one JavaScript client. That's why it shows up everywhere in this codebase.
+
+## What's actually in the database
+
+A Postgres database is a set of **tables**. Each table has columns (like a spreadsheet header row) and rows (like spreadsheet rows). DiceRollers has tables like:
+
+| Table | Roughly what it stores |
+|---|---|
+| `profiles` | One row per user — name, avatar, is_admin, etc. |
+| `rolls` | One row per dice roll — who, when, what they drank, doubles, daily double. |
+| `likes` | One row per like — which user liked which roll. |
+| `achievements` | The catalog of every possible achievement. |
+| `user_achievements` | Who earned what, when. |
+| `punch_card` | Repeatable achievement progress. |
+| `twinsies_pairs` | Twinsies relationships between users. |
+
+Tables relate to each other via **foreign keys**. A row in `rolls` has a `user_id` column that points at a `profiles.id` — that's how the database knows which user made which roll.
+
+## Three flavors of Supabase client
+
+This is the part that trips people up. The same library, three different setup functions, each with a different superpower:
+
+<DataFlowDiagram
+  chart={`flowchart TD
+    A["@/lib/supabase/client<br/>BROWSER CLIENT"] -->|reads anon key from env| S[Supabase]
+    B["@/lib/supabase/server<br/>SERVER CLIENT"] -->|reads cookies for auth| S
+    C["getAdminClient()<br/>SERVICE ROLE CLIENT"] -->|service_role key,<br/>BYPASSES RLS| S
+    style A stroke:#22c55e
+    style B stroke:#3b82f6
+    style C stroke:#ec4899
+  `}
+  caption="Which client you use depends on where the code runs and what it's allowed to do."
+/>
+
+<ToggleSandbox
+  title="Pick a scenario, see which client you'd reach for."
+  options={[
+    {
+      id: "feed-load",
+      label: "Server-rendering the feed",
+      display: <code className="text-text-primary text-sm">@/lib/supabase/server</code>,
+      explanation: "Server components and API routes use the server client. It reads cookies to figure out who the request is from, then runs queries scoped to that user via Row-Level Security.",
+    },
+    {
+      id: "like-roll",
+      label: "User taps the heart on the feed",
+      display: <code className="text-text-primary text-sm">@/lib/supabase/client</code>,
+      explanation: "That happens in a client component, in the browser. The browser client uses the anon key and is also scoped by the user's session.",
+    },
+    {
+      id: "admin-fix",
+      label: "Admin script fixing a corrupted row",
+      display: <code className="text-text-primary text-sm">getAdminClient() (service role)</code>,
+      explanation: "Service role bypasses RLS — it can do anything. Only ever used inside API routes you've gated yourself, never in the browser. The /api/rolls/route.ts file lazily creates it when needed.",
+    },
+  ]}
+/>
+
+## What Row-Level Security (RLS) is doing
+
+Postgres has a feature called RLS. You write a policy on a table like *"users can only SELECT rolls if user_id = auth.uid()"*. Then *even if* the front-end forgets to filter, the database still won't return rows the user shouldn't see.
+
+This is why the browser and server clients use the **anon key** — that key is intentionally weak. By itself it can't do anything. RLS rules are what actually grant access, based on who the JWT says you are. The service role key skips all those checks, which is exactly why it must never leave the server.
+
+## The auth side
+
+Supabase Auth handles email logins, OAuth (Google/Apple/etc.), magic links, and password resets. Every logged-in user has a JWT — a signed token stored in their cookies. The server client picks up that JWT from cookies automatically. The browser client picks it up from session storage. From your code, you just call `supabase.auth.getUser()` and you get back the current user.
+
+Module 7 walks the whole login flow start to finish.
+
+## Storage (we use this less)
+
+The third leg is file storage — uploads to a CDN-backed bucket. DiceRollers uses it for avatars and the daily-double logos. Same client, but with `supabase.storage.from(bucket).upload(...)`.
+
+## What you can do with this knowledge
+
+Whenever you're about to query the database, ask: *am I on the server or the client?* That determines the import. And: *am I doing user-scoped work or admin work?* That determines whether you can use the normal client or need the service role.

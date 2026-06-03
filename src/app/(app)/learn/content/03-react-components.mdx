@@ -1,0 +1,161 @@
+import AnnotatedCode from "../components/AnnotatedCode";
+import ToggleSandbox from "../components/ToggleSandbox";
+import EditableSnippet from "../components/EditableSnippet";
+
+A **React component** is a function that returns some HTML. That's the whole idea. You write a function called `RollCard`, it returns `<div>...</div>`, and now you can use `<RollCard />` anywhere in the app as if it were a built-in tag.
+
+## Props: arguments for components
+
+Components take **props** the way functions take arguments. You pass them as attributes:
+
+<AnnotatedCode
+  language="tsx"
+  code={`function DrinkBadge({ size }: { size: "md" | "lg" }) {
+  const sizeClass = size === "lg" ? "w-12 h-12" : "w-8 h-8";
+  return <img src="/drink.png" className={sizeClass} />;
+}
+
+// Use it like this:
+<DrinkBadge size="md" />
+<DrinkBadge size="lg" />`}
+  annotations={[
+    {
+      lines: 1,
+      title: "Destructured props",
+      body: "{ size } is JavaScript destructuring — pulling the size property out of the props object. The type annotation tells TypeScript size can only be 'md' or 'lg'. If you tried <DrinkBadge size='xxl' /> you'd get a red squiggle.",
+    },
+    {
+      lines: 2,
+      title: "Just JavaScript",
+      body: "Inside a component you can do anything you'd do in a normal function — variables, if-statements, loops. This is the part most people overcomplicate.",
+    },
+    {
+      lines: 3,
+      title: "Return JSX",
+      body: "JSX is JavaScript that looks like HTML. <img ... /> compiles down to React.createElement('img', ...). className instead of class because 'class' is a reserved word in JS.",
+    },
+  ]}
+/>
+
+## State: data that changes
+
+When something in the UI needs to remember a value over time, it goes in **state**. State is created with the `useState` hook:
+
+<ToggleSandbox
+  title="State in 30 seconds"
+  prompt="Compare what changes when you switch."
+  options={[
+    {
+      id: "no-state",
+      label: "Without state",
+      display: (
+        <pre className="text-text-primary text-xs whitespace-pre">{`function Counter() {
+  let count = 0;
+  return (
+    <button onClick={() => count++}>
+      {count}
+    </button>
+  );
+}`}</pre>
+      ),
+      explanation: "This LOOKS like it should work, but the button won't update. count++ runs, but React has no idea anything changed and never re-renders. The UI is frozen at 0.",
+    },
+    {
+      id: "with-state",
+      label: "With state",
+      display: (
+        <pre className="text-text-primary text-xs whitespace-pre">{`function Counter() {
+  const [count, setCount] = useState(0);
+  return (
+    <button onClick={() => setCount(count + 1)}>
+      {count}
+    </button>
+  );
+}`}</pre>
+      ),
+      explanation: "Calling setCount tells React: 'this value changed — re-run this function and update the screen.' That's the whole purpose of useState — to wire a value into React's update cycle.",
+    },
+  ]}
+/>
+
+## Picking apart a real component
+
+`<RollCard>` is the most-used component in the app — it renders one roll in the feed and history. Here's its essence (simplified):
+
+<AnnotatedCode
+  filename="src/components/roll/RollCard.tsx (simplified)"
+  language="tsx"
+  code={`interface RollCardProps {
+  roll: Roll;
+  header?: React.ReactNode;
+  footer?: React.ReactNode;
+}
+
+export default function RollCard({ roll, header, footer }: RollCardProps) {
+  return (
+    <article className="rounded-lg border border-surface-2 bg-surface p-4">
+      {header}
+      <DrinkBadge size="lg" drink={roll.drink} />
+      {roll.is_doubles && <DoublesBadge />}
+      {footer}
+    </article>
+  );
+}`}
+  annotations={[
+    {
+      lines: [1, 5],
+      title: "Props shapes get a name",
+      body: "Defining an interface up top makes the component self-documenting. Anywhere you see <RollCard ... />, you (and TypeScript) can look up exactly what props it accepts.",
+    },
+    {
+      lines: [3, 4],
+      title: "header and footer are 'slots'",
+      body: "Notice the ? — these props are optional. Their type is ReactNode, which means 'anything renderable: JSX, a string, null, etc.' Callers can pass their own little chunk of UI into the slot. The feed uses one footer, the history page uses another.",
+    },
+    {
+      lines: 12,
+      title: "Conditional rendering",
+      body: "{roll.is_doubles && <DoublesBadge />} reads as: 'if is_doubles is true, render DoublesBadge; otherwise render nothing.' && short-circuits in JS — when the left side is false, the right side never evaluates.",
+    },
+  ]}
+/>
+
+## Try it: write your own component logic
+
+This isn't a React component (no JSX), but it's the same shape of thinking — input → derived output. Modify the function so it returns the label that would appear on a roll card.
+
+<EditableSnippet
+  title="rollLabel — pick the label for a roll"
+  prompt="If the roll is doubles, return 'DOUBLES!'. If it's a daily double, return 'DAILY DOUBLE!'. Otherwise return the drink name in caps. (Daily doubles are also doubles, so check that case first.)"
+  functionName="rollLabel"
+  starterCode={`function rollLabel(roll) {
+  // TODO: return the right label string for this roll
+  return roll.drink;
+}`}
+  solutionCode={`function rollLabel(roll) {
+  if (roll.is_daily_double) return "DAILY DOUBLE!";
+  if (roll.is_doubles) return "DOUBLES!";
+  return roll.drink.toUpperCase();
+}`}
+  testCases={[
+    {
+      label: "regular roll",
+      args: [{ drink: "beer", is_doubles: false, is_daily_double: false }],
+      expected: "BEER",
+    },
+    {
+      label: "doubles",
+      args: [{ drink: "shot", is_doubles: true, is_daily_double: false }],
+      expected: "DOUBLES!",
+    },
+    {
+      label: "daily double",
+      args: [{ drink: "shot", is_doubles: true, is_daily_double: true }],
+      expected: "DAILY DOUBLE!",
+    },
+  ]}
+/>
+
+## What you can do with this knowledge
+
+Whenever you spot a piece of UI that's repeated, that's a candidate for a component. And per CLAUDE.md: *before* you make a new one, search `src/components/` for something close. Adding a `variant` prop to an existing component is almost always better than creating a near-duplicate.
