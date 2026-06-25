@@ -44,6 +44,7 @@ export const ACHIEVEMENT_IDS = {
   COMMON_MAN: "common_man",
   FIRE_AND_ICE: "fire_and_ice",
   GEN_ALPHA: "gen_alpha",
+  FORGET_THE_ALAMO: "forget_the_alamo",
 
   // Clocking In
   SUNDAY_FUNDAY: "sunday_funday",
@@ -84,6 +85,7 @@ export const ACHIEVEMENT_IDS = {
   FRIDAY_13TH: "friday_13th",
   EASTER: "easter",
   THANKSGIVING: "thanksgiving",
+  WORLD_CUP: "world_cup",
 } as const;
 
 export type AchievementId = (typeof ACHIEVEMENT_IDS)[keyof typeof ACHIEVEMENT_IDS];
