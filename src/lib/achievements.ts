@@ -90,6 +90,12 @@ const SPECIAL_COMBOS: Array<{ id: AchievementId; redDrink: string; whiteDrink: s
   { id: A.THE_REGULAR,          redDrink: "Mickeys",      whiteDrink: "Malort" },
   { id: A.HOT_BITCH,            redDrink: "Raging Bitch", whiteDrink: "Hot Hooch" },
   { id: A.COMMON_MAN,           redDrink: "High Life",    whiteDrink: "Jim Beam" },
+  { id: A.FORGET_THE_ALAMO,     redDrink: "Modelo",       whiteDrink: "Espolon" },
+];
+
+// FIFA World Cup date windows; add future editions when dates are announced.
+const WORLD_CUP_DATE_RANGES: Array<{ start: string; end: string }> = [
+  { start: "2026-06-11", end: "2026-07-19" },
 ];
 
 const PUNCH_CARD_EMOJI = "👊";
@@ -608,6 +614,11 @@ export async function evaluateAchievements(
       if (month === tday.month && day >= weekStartDay && day <= weekEndDay) {
         queueCompletion(A.THANKSGIVING);
       }
+    }
+
+    // World Cup: roll during any FIFA World Cup window
+    if (WORLD_CUP_DATE_RANGES.some(({ start, end }) => roll.roll_date >= start && roll.roll_date <= end)) {
+      queueCompletion(A.WORLD_CUP);
     }
   }
 
