@@ -454,6 +454,18 @@ export async function evaluateAchievements(
     queueCompletion(A.FEELING_LUCKY);
   }
 
+  // Dyslexic Deja Vu: roll a combo, then immediately roll its exact inverse
+  // (red/white swapped), back-to-back. Doubles don't count on either side.
+  if (
+    lastTwo.length >= 2 &&
+    !lastTwo[0].is_doubles &&
+    !lastTwo[1].is_doubles &&
+    lastTwo[0].red_die_number === lastTwo[1].white_die_number &&
+    lastTwo[0].white_die_number === lastTwo[1].red_die_number
+  ) {
+    queueCompletion(A.DYSLEXIC_DEJA_VU);
+  }
+
   if (doublesTonight >= 3) queueCompletion(A.ON_FIRE);
   if (doublesTonight >= 2) queueCompletion(A.HOT_DICE);
   if (roll.is_doubles && roll.red_die_number === 1) queueCompletion(A.SNAKE_EYES);

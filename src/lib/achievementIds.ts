@@ -31,6 +31,7 @@ export const ACHIEVEMENT_IDS = {
   BOXCARS: "boxcars",
   HOT_DICE: "hot_dice",
   DEJA_VU: "deja_vu",
+  DYSLEXIC_DEJA_VU: "dyslexic_deja_vu",
   STUCK_IN_THE_MATRIX: "stuck_in_the_matrix",
   MARK_OF_THE_DEVIL: "mark_of_the_devil",
   SHOT_ROULETTE: "shot_roulette",

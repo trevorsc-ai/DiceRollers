@@ -192,6 +192,27 @@ function computeAchievements(rolls) {
     }
   }
 
+  // Dyslexic Deja Vu: roll a combo, then immediately roll its exact inverse
+  // (red/white swapped), back-to-back. Doubles don't count on either side.
+  outer_dyslexic: for (const nightRolls of Object.values(rollsByDate)) {
+    const sorted = [...nightRolls].sort((a, b) =>
+      a.roll_time < b.roll_time ? -1 : a.roll_time > b.roll_time ? 1 : 0
+    );
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1];
+      const cur = sorted[i];
+      if (
+        !prev.is_doubles &&
+        !cur.is_doubles &&
+        cur.red_die_number === prev.white_die_number &&
+        cur.white_die_number === prev.red_die_number
+      ) {
+        markComplete("dyslexic_deja_vu");
+        break outer_dyslexic;
+      }
+    }
+  }
+
   // Snake Eyes: double 1s
   if (rolls.some((r) => r.is_doubles && r.red_die_number === 1)) markComplete("snake_eyes");
 
