@@ -29,6 +29,26 @@ CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
+-- Prevent non-admin users from modifying is_admin
+CREATE OR REPLACE FUNCTION public.protect_profiles_is_admin()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.is_admin IS DISTINCT FROM OLD.is_admin THEN
+    IF auth.uid() IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true
+    ) THEN
+      RAISE EXCEPTION 'Unauthorized: cannot modify is_admin';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS protect_profiles_is_admin ON public.profiles;
+CREATE TRIGGER protect_profiles_is_admin
+  BEFORE UPDATE ON public.profiles
+  FOR EACH ROW EXECUTE FUNCTION public.protect_profiles_is_admin();
+
 
 -- ─── MENU ITEMS ──────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS public.menu_items (
@@ -107,7 +127,13 @@ CREATE POLICY "profiles_select" ON public.profiles
 -- profiles: users can update only their own non-admin fields
 CREATE POLICY "profiles_update_own" ON public.profiles
   FOR UPDATE USING (auth.uid() = id)
-  WITH CHECK (auth.uid() = id);
+  WITH CHECK (
+    auth.uid() = id
+    AND (
+      is_admin = false
+      OR EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND is_admin = true)
+    )
+  );
 
 -- profiles: admin bypass (service role can do anything via service key)
 
