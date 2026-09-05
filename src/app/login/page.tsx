@@ -191,10 +191,8 @@ export default function LoginPage() {
                 Forgot password?
               </button>
               {showForgotPassword && (
-                <div className="mt-3 bg-surface-2 rounded-lg px-4 py-3 text-xs text-text-secondary text-left space-y-1">
-                  <p className="text-text-primary font-medium">Need a password reset?</p>
-                  <p>Ask an admin to reset your password from the admin panel.</p>
-                  <p>Make sure you have a recovery email saved in your account settings so the admin can identify you.</p>
+                <div className="mt-3 bg-surface-2 rounded-lg px-4 py-3 text-xs text-text-secondary text-left">
+                  <p>Find the regulars rolling a lot of dice, they can help you out.</p>
                 </div>
               )}
             </div>

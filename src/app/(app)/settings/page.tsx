@@ -10,7 +10,6 @@ import Link from "next/link";
 interface Profile {
   username: string;
   is_admin: boolean;
-  recovery_email: string | null;
 }
 
 const SETTINGS_PROFILE_KEY = ["settingsProfile"] as const;
@@ -27,7 +26,7 @@ export default function SettingsPage() {
       if (!user) return null;
       const { data } = await supabase
         .from("profiles")
-        .select("username, is_admin, recovery_email")
+        .select("username, is_admin")
         .eq("id", user.id)
         .single();
       return (data as Profile) ?? null;
@@ -35,9 +34,7 @@ export default function SettingsPage() {
   });
 
   // Local form state — initialised from the query once it lands.
-  const [recoveryEmail, setRecoveryEmail] = useState("");
   const [newHandle, setNewHandle] = useState("");
-  const [recoveryEmailInitialized, setRecoveryEmailInitialized] = useState(false);
   const [handleInitialized, setHandleInitialized] = useState(false);
 
   useEffect(() => {
@@ -45,11 +42,7 @@ export default function SettingsPage() {
       setNewHandle(profile.username);
       setHandleInitialized(true);
     }
-    if (profile && !recoveryEmailInitialized) {
-      setRecoveryEmail(profile.recovery_email ?? "");
-      setRecoveryEmailInitialized(true);
-    }
-  }, [profile, handleInitialized, recoveryEmailInitialized]);
+  }, [profile, handleInitialized]);
 
   // Debounced handle availability check
   const [handleAvailable, setHandleAvailable] = useState<boolean | null>(null);
@@ -111,28 +104,8 @@ export default function SettingsPage() {
     },
   });
 
-  const saveRecoveryEmail = useMutation({
-    mutationFn: async (email: string) => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No user");
-      const trimmed = email.trim() || null;
-      const { error } = await supabase
-        .from("profiles")
-        .update({ recovery_email: trimmed })
-        .eq("id", user.id);
-      if (error) throw error;
-      return trimmed;
-    },
-    onSuccess: (trimmed) => {
-      queryClient.setQueryData<Profile | null>(SETTINGS_PROFILE_KEY, (prev) =>
-        prev ? { ...prev, recovery_email: trimmed } : prev
-      );
-    },
-  });
-
   // Show "Saved!" briefly after a successful save.
   const [handleSavedFlash, setHandleSavedFlash] = useState(false);
-  const [emailSavedFlash, setEmailSavedFlash] = useState(false);
   useEffect(() => {
     if (saveHandle.isSuccess) {
       setHandleSavedFlash(true);
@@ -140,13 +113,6 @@ export default function SettingsPage() {
       return () => clearTimeout(t);
     }
   }, [saveHandle.isSuccess, saveHandle.data]);
-  useEffect(() => {
-    if (saveRecoveryEmail.isSuccess) {
-      setEmailSavedFlash(true);
-      const t = setTimeout(() => setEmailSavedFlash(false), 2000);
-      return () => clearTimeout(t);
-    }
-  }, [saveRecoveryEmail.isSuccess, saveRecoveryEmail.data]);
 
   async function signOut() {
     await supabase.auth.signOut();
@@ -209,30 +175,6 @@ export default function SettingsPage() {
             <p className="text-neon-pink text-xs mt-1">Handle already taken</p>
           )}
           {handleError && <p className="text-neon-pink text-xs mt-1">{handleError}</p>}
-        </div>
-
-        {/* Recovery email */}
-        <div className="bg-surface rounded-2xl p-4 border border-surface-2">
-          <p className="text-text-primary text-sm font-medium mb-0.5">Recovery Email</p>
-          <p className="text-text-secondary text-xs mb-3">
-            Optional. Only used if you need admin help resetting your password.
-          </p>
-          <div className="flex gap-2">
-            <input
-              type="email"
-              value={recoveryEmail}
-              onChange={(e) => setRecoveryEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="flex-1 bg-surface-2 border border-surface-2 rounded-lg px-3 py-2 text-sm text-text-primary placeholder-text-secondary focus:outline-none focus:border-neon-pink transition-colors"
-            />
-            <button
-              onClick={() => saveRecoveryEmail.mutate(recoveryEmail)}
-              disabled={saveRecoveryEmail.isPending}
-              className="px-3 py-2 bg-neon-pink text-white text-xs font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
-            >
-              {emailSavedFlash ? "Saved!" : saveRecoveryEmail.isPending ? "..." : "Save"}
-            </button>
-          </div>
         </div>
 
         {/* Admin panel link */}

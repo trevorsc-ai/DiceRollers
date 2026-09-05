@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "recalc-achievements": "node --env-file=.env.local scripts/recalculate-achievements.mjs"
+    "recalc-achievements": "node --env-file=.env.local scripts/recalculate-achievements.mjs",
+    "normalize-auth-emails": "node --env-file=.env.local scripts/normalize-auth-emails.mjs"
   },
   "dependencies": {
     "@mdx-js/loader": "^3.1.1",
