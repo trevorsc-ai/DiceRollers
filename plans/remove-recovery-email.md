@@ -2,15 +2,15 @@
 planStatus:
   planId: plan-remove-recovery-email
   title: Remove Recovery Email & Email PII
-  status: in-development
+  status: complete
   planType: chore
   priority: high
   owner: travisscavone
   stakeholders: []
   tags: ["auth", "privacy", "supabase"]
   created: "2026-09-05"
-  updated: "2026-09-05T00:00:00.000Z"
-  progress: 0
+  updated: "2026-09-06T00:00:00.000Z"
+  progress: 100
 ---
 
 # Remove Recovery Email & Email PII
@@ -114,10 +114,10 @@ Dry run by default so the report can be read before anything changes.
 
 ## Deployment Checklist
 
-- [ ] Run `scripts/normalize-auth-emails.mjs` (dry run) and read the report
-- [ ] Run it with `--apply` to overwrite any real addresses found
-- [ ] Pre-PR gates: `npx tsc --noEmit`, `npx next lint`, `npx next build`
-- [ ] `supabase db push --linked` to drop `recovery_email` in prod
-- [ ] Regenerate `src/types/database.ts` from the live schema
-- [ ] Merge code to main
-- [ ] Verify: Settings shows no email field, forgot-password panel shows the new copy
+- [x] Audit `auth.users` for non-synthetic emails — done via SQL against prod; found 0 real addresses, 1 stale synthetic (`a_scheff` → `top_scheff`)
+- [x] Fix the stale synthetic email — `top_scheff@dicerollers.local`, run in the Supabase SQL editor
+- [x] Pre-PR gates: `npx tsc --noEmit`, `npx next lint`, `npx next build`
+- [x] Drop `recovery_email` in prod — migration 071 applied via Supabase MCP
+- [x] Confirm `src/types/database.ts` matches the live schema — already correct from PR #30, no diff
+- [x] Merge code to main — PR #30, squash-merged as `eeff0d7`
+- [x] Verify: Settings shows no email field, forgot-password panel shows the new copy — deploy confirmed healthy
