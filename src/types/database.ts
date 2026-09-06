@@ -114,7 +114,6 @@ export type Database = {
           id: string
           is_admin: boolean
           oath_accepted_at: string | null
-          recovery_email: string | null
           username: string
         }
         Insert: {
@@ -122,7 +121,6 @@ export type Database = {
           id: string
           is_admin?: boolean
           oath_accepted_at?: string | null
-          recovery_email?: string | null
           username: string
         }
         Update: {
@@ -130,7 +128,6 @@ export type Database = {
           id?: string
           is_admin?: boolean
           oath_accepted_at?: string | null
-          recovery_email?: string | null
           username?: string
         }
         Relationships: []
