@@ -80,7 +80,9 @@ if (roll.red_die_number === 1 && roll.white_die_number === 1) {
 Anything "in one night" — uses `tonightRolls`, already fetched once.
 
 ```ts
-const malortTonight = tonightRolls.filter((r) => r.white_die_number === 6).length;
+// Drink-themed achievements match the drink name (isMalort from @/lib/drinks),
+// dice achievements match die numbers.
+const malortTonight = tonightRolls.filter((r) => isMalort(r.white_drink_name)).length;
 if (malortTonight >= 3) queueCompletion(A.YOUR_NEW_ID);
 ```
 

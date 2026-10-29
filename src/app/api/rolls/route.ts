@@ -3,6 +3,7 @@ import { createClient as createServerClient } from "@/lib/supabase/server";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getAdjustedRollDate } from "@/lib/dateUtils";
 import { evaluateAchievements } from "@/lib/achievements";
+import { fetchIsHalloweenActive } from "@/lib/queries/menu";
 
 export async function POST(req: NextRequest) {
   // Authenticate via session
@@ -33,6 +34,27 @@ export async function POST(req: NextRequest) {
     whiteDrinkLogo: string | null;
     dailyDouble: boolean;
   };
+
+  // No Daily Double while the Halloween menu is on. A client with a stale
+  // menu could still send one, so refuse it and have them refresh.
+  if (dailyDouble) {
+    let halloweenActive = false;
+    try {
+      halloweenActive = await fetchIsHalloweenActive(supabase);
+    } catch (err) {
+      console.error("Halloween menu check failed", {
+        userId: user.id,
+        error: err instanceof Error ? err.message : err,
+      });
+      return NextResponse.json({ error: "Couldn't check tonight's menu. Try again." }, { status: 500 });
+    }
+    if (halloweenActive) {
+      return NextResponse.json(
+        { error: "The menu changed. Refresh the page and roll again." },
+        { status: 409 }
+      );
+    }
+  }
 
   const now = new Date();
   const rollTime = now.toISOString();
