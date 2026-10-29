@@ -7,17 +7,13 @@ import { createClient } from "@/lib/supabase/client";
 import DiePicker from "@/components/DiePicker";
 import DoublesConfetti from "@/components/DoublesConfetti";
 import MalortCelebration from "@/components/MalortCelebration";
+import HalloweenOverlay from "@/components/HalloweenOverlay";
 import AchievementModal from "@/components/AchievementModal";
 import { DrinkBadge } from "@/components/roll/DrinkBadge";
 import { Check, Settings } from "lucide-react";
 import type { AchievementInfo } from "@/lib/achievements";
-
-interface MenuItem {
-  die_color: string;
-  die_number: number;
-  drink_name: string;
-  logo_url: string | null;
-}
+import { activeMenuQueryKey, fetchActiveMenu, isHalloweenMenu } from "@/lib/queries/menu";
+import { isMalort as isMalortDrink } from "@/lib/drinks";
 
 interface DrinkDisplay {
   name: string;
@@ -49,20 +45,13 @@ export default function RollPage() {
   const [newAchievements, setNewAchievements] = useState<AchievementInfo[]>([]);
 
   const { data: menu = [], error: menuError } = useQuery({
-    queryKey: ["menuItems", "active"],
-    // Menu rarely changes during a session; the admin/menu page invalidates
-    // its own key, this one is read-only.
-    staleTime: 5 * 60_000,
-    queryFn: async (): Promise<MenuItem[]> => {
-      const { data, error } = await supabase
-        .from("menu_items")
-        .select("die_color, die_number, drink_name, logo_url")
-        .eq("is_active", true)
-        .order("die_number");
-      if (error) throw error;
-      return (data as MenuItem[]) ?? [];
-    },
+    queryKey: activeMenuQueryKey(),
+    // Short staleTime so an admin flipping the Halloween menu reaches open
+    // roll pages within a minute (refetch on focus / remount).
+    staleTime: 60_000,
+    queryFn: () => fetchActiveMenu(supabase),
   });
+  const isHalloween = isHalloweenMenu(menu);
 
   const saveRoll = useMutation({
     mutationFn: async (input: SaveRollInput): Promise<SaveRollResponse> => {
@@ -71,7 +60,10 @@ export default function RollPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(input),
       });
-      if (!res.ok) throw new Error("Save failed");
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error ?? "Save failed. Try again.");
+      }
       return res.json();
     },
     onSuccess: ({ newAchievements: earned }) => {
@@ -102,7 +94,8 @@ export default function RollPage() {
 
   const isDoubles = redDie !== null && whiteDie !== null && redDie === whiteDie;
   const isDouble6s = isDoubles && redDie === 6;
-  const isMalort = whiteDie === 6;
+  // No Daily Double (and so no Double-6s rule) while the Halloween menu is on.
+  const ddAvailable = !isHalloween && isDoubles && !isDouble6s;
 
   const getMenuItem = useCallback(
     (color: string, num: number): DrinkDisplay | null => {
@@ -119,9 +112,11 @@ export default function RollPage() {
   const dailyDoubleShot = getMenuItem("daily_double", 2);
 
   const displayRedDrink =
-    isDoubles && dailyDoubleChoice === true ? dailyDoubleBeer : regularRedDrink;
+    ddAvailable && dailyDoubleChoice === true ? dailyDoubleBeer : regularRedDrink;
   const displayWhiteDrink =
-    isDoubles && dailyDoubleChoice === true ? dailyDoubleShot : regularWhiteDrink;
+    ddAvailable && dailyDoubleChoice === true ? dailyDoubleShot : regularWhiteDrink;
+  // Malort follows the drink, not the die (Barrel-Aged Malört is white 1 on Halloween).
+  const isMalort = isMalortDrink(displayWhiteDrink?.name);
 
   useEffect(() => {
     setDailyDoubleChoice(null);
@@ -129,9 +124,9 @@ export default function RollPage() {
 
   function handleSave() {
     if (redDie === null || whiteDie === null) return;
-    if (isDoubles && !isDouble6s && dailyDoubleChoice === null) return;
+    if (ddAvailable && dailyDoubleChoice === null) return;
 
-    const takingDailyDouble = isDoubles && !isDouble6s && dailyDoubleChoice === true;
+    const takingDailyDouble = ddAvailable && dailyDoubleChoice === true;
     const redDrink = takingDailyDouble ? dailyDoubleBeer : regularRedDrink;
     const whiteDrink = takingDailyDouble ? dailyDoubleShot : regularWhiteDrink;
     if (!redDrink || !whiteDrink) return;
@@ -148,6 +143,7 @@ export default function RollPage() {
   }
 
   function handleReset() {
+    saveRoll.reset();
     setRedDie(null);
     setWhiteDie(null);
     setSaved(false);
@@ -159,10 +155,11 @@ export default function RollPage() {
     redDie !== null &&
     whiteDie !== null &&
     !saving &&
-    (!isDoubles || isDouble6s || dailyDoubleChoice !== null);
+    (!ddAvailable || dailyDoubleChoice !== null);
 
   return (
     <div className="min-h-screen bg-background">
+      <HalloweenOverlay active={isHalloween} />
       {isDoubles && <DoublesConfetti active />}
       {isMalort && !isDoubles && <MalortCelebration active />}
       {newAchievements.length > 0 && (
@@ -170,10 +167,14 @@ export default function RollPage() {
       )}
 
       {/* Header */}
-      <div className="flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0">
+      <div className="relative z-[1] flex items-center justify-between px-5 pt-5 pb-3.5 shrink-0">
         <div className="w-8" />
         <div className="text-center">
-          <h1 className="neon-title font-display text-[38px] tracking-[0.32em] leading-none">ROLL</h1>
+          {isHalloween ? (
+            <h1 className="spooky-title font-display text-[30px] tracking-[0.18em] leading-none">SPOOKY ROLL</h1>
+          ) : (
+            <h1 className="neon-title font-display text-[38px] tracking-[0.32em] leading-none">ROLL</h1>
+          )}
           <p className="font-display text-[11px] tracking-[0.14em] text-text-muted mt-1">
             {dateStr} · {timeStr}
           </p>
@@ -184,7 +185,17 @@ export default function RollPage() {
       </div>
 
       {/* Scrollable body */}
-      <div className="px-[18px] pb-[84px] flex flex-col gap-3.5">
+      <div className="relative z-[1] px-[18px] pb-[84px] flex flex-col gap-3.5">
+        {isHalloween && (
+          <div
+            className="rounded-[14px] border p-2.5 text-center"
+            style={{ borderColor: "rgba(168,85,247,0.45)", background: "rgba(168,85,247,0.08)" }}
+          >
+            <p className="font-display text-sm tracking-[0.2em] neon-text-orange">🎃 HALLOWEEN MENU 🎃</p>
+            <p className="text-text-secondary text-[11px] mt-0.5">Spooky shots tonight · No Daily Double</p>
+          </div>
+        )}
+
         {menuError && (
           <div className="bg-surface border border-neon-pink/40 rounded-[14px] p-3 text-center">
             <p className="text-neon-pink text-xs font-medium">Couldn&apos;t load tonight&apos;s menu</p>
@@ -194,8 +205,8 @@ export default function RollPage() {
 
         {/* Dice pickers */}
         <div className="grid grid-cols-2 gap-3">
-          <DiePicker color="red" value={redDie} onChange={setRedDie} />
-          <DiePicker color="white" value={whiteDie} onChange={setWhiteDie} />
+          <DiePicker color="red" value={redDie} onChange={setRedDie} variant={isHalloween ? "spooky" : "default"} />
+          <DiePicker color="white" value={whiteDie} onChange={setWhiteDie} variant={isHalloween ? "spooky" : "default"} />
         </div>
 
         {/* Combo card */}
@@ -203,12 +214,12 @@ export default function RollPage() {
           <div
             className="bg-surface border rounded-[20px] p-[14px_16px]"
             style={{
-              borderColor: isDoubles ? "rgba(255,214,0,0.33)" : "#252525",
+              borderColor: isDoubles ? "rgba(255,214,0,0.33)" : isHalloween ? "rgba(168,85,247,0.4)" : "#252525",
               animation: "flip-in 0.3s ease-out",
             }}
           >
             <p className="font-display text-[10px] tracking-[0.22em] text-center text-text-muted mb-3">
-              TONIGHT&apos;S COMBO
+              {isHalloween ? "🦇 TONIGHT'S SPOOKY COMBO 🦇" : "TONIGHT'S COMBO"}
             </p>
             <div className="flex items-center justify-around">
               {displayRedDrink && (
@@ -240,7 +251,11 @@ export default function RollPage() {
                 <p className="font-display text-base tracking-[0.20em] text-center mb-3 neon-text-gold">
                   🎲 DOUBLES! 🎲
                 </p>
-                {isDouble6s ? (
+                {isHalloween ? (
+                  <p className="text-text-secondary text-xs text-center">
+                    No Daily Double on Halloween 🎃
+                  </p>
+                ) : isDouble6s ? (
                   <p className="text-text-secondary text-xs text-center">
                     Double 6s means Mickeys + Malort — no Daily Double for you!
                   </p>
@@ -294,22 +309,31 @@ export default function RollPage() {
 
         {/* Save / Saved */}
         {!saved ? (
-          <button
-            onClick={handleSave}
-            disabled={!canSave}
-            style={
-              canSave
-                ? { boxShadow: "0 0 24px rgba(255,45,85,0.45)" }
-                : { background: "#1A0008", borderColor: "#2A0018" }
-            }
-            className={`w-full py-[18px] rounded-[18px] font-display text-[22px] tracking-[0.28em] border transition-all ${
-              canSave
-                ? "bg-neon-pink border-neon-pink text-white hover:opacity-90 active:scale-95"
-                : "text-[#FF2D5535] cursor-default"
-            }`}
-          >
-            {saving ? "SAVING..." : "SAVE ROLL"}
-          </button>
+          <>
+            <button
+              onClick={handleSave}
+              disabled={!canSave}
+              style={
+                isHalloween
+                  ? canSave
+                    ? { background: "#FF7A00", borderColor: "#FF7A00", boxShadow: "0 0 24px rgba(255,122,0,0.45), 0 0 40px rgba(168,85,247,0.25)" }
+                    : { background: "#1A0D00", borderColor: "#2A1500", color: "#FF7A0035" }
+                  : canSave
+                    ? { boxShadow: "0 0 24px rgba(255,45,85,0.45)" }
+                    : { background: "#1A0008", borderColor: "#2A0018" }
+              }
+              className={`w-full py-[18px] rounded-[18px] font-display text-[22px] tracking-[0.28em] border transition-all ${
+                canSave
+                  ? "bg-neon-pink border-neon-pink text-white hover:opacity-90 active:scale-95"
+                  : "text-[#FF2D5535] cursor-default"
+              }`}
+            >
+              {saving ? "SAVING..." : isHalloween ? "🎃 SAVE ROLL" : "SAVE ROLL"}
+            </button>
+            {saveRoll.error && (
+              <p className="text-neon-pink text-xs text-center">{saveRoll.error.message}</p>
+            )}
+          </>
         ) : (
           <div className="space-y-2.5 animate-scale-in">
             <div className="flex items-center justify-center gap-2 neon-text-green">

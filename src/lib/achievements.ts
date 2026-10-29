@@ -2,6 +2,7 @@ import { SupabaseClient } from "@supabase/supabase-js";
 import { getNYHour } from "./dateUtils";
 import { twinEventKey, type TwinsiesEvent } from "./twinsies";
 import { ACHIEVEMENT_IDS, DOW_ACHIEVEMENTS, type AchievementId } from "./achievementIds";
+import { isMalort, WHITE_MALORT_FILTER } from "./drinks";
 
 const A = ACHIEVEMENT_IDS;
 
@@ -178,7 +179,8 @@ export async function evaluateAchievements(
       .from("rolls")
       .select("*", { count: "exact", head: true })
       .eq("user_id", userId)
-      .eq("white_die_number", 6),
+      // Malort is matched by drink name, not die number (special menus move it).
+      .or(WHITE_MALORT_FILTER),
   ]);
 
   const existing: ExistingRow[] = (existingRaw as ExistingRow[]) ?? [];
@@ -507,7 +509,12 @@ export async function evaluateAchievements(
 
   // ── SPECIAL COMBINATIONS (drink-name matched; DD substitutions don't trigger) ──
   for (const combo of SPECIAL_COMBOS) {
-    if (roll.red_drink_name === combo.redDrink && roll.white_drink_name === combo.whiteDrink) {
+    // Any Malört variant (e.g. Halloween's Barrel-Aged Malört) counts as Malort.
+    const whiteMatches =
+      combo.whiteDrink === "Malort"
+        ? isMalort(roll.white_drink_name)
+        : roll.white_drink_name === combo.whiteDrink;
+    if (roll.red_drink_name === combo.redDrink && whiteMatches) {
       queueCompletion(combo.id);
     }
   }
@@ -583,7 +590,7 @@ export async function evaluateAchievements(
 
   // Malort Again!: 2+ Malort rolls in one night
   {
-    const malortTonight = tonightRolls.filter((r) => r.white_die_number === 6).length;
+    const malortTonight = tonightRolls.filter((r) => isMalort(r.white_drink_name)).length;
     if (malortTonight >= 2) queueCompletion(A.MALORT_THREE_PEAT);
   }
 

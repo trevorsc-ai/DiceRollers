@@ -6,14 +6,22 @@ interface DiePickerProps {
   color: "red" | "white";
   value: number | null;
   onChange: (value: number) => void;
+  /** "spooky" = Halloween palette: red die glows orange, white die glows purple. */
+  variant?: "default" | "spooky";
 }
 
 const DIE_FACES = [1, 2, 3, 4, 5, 6, 7, 8];
 
-export default function DiePicker({ color, value, onChange }: DiePickerProps) {
+export default function DiePicker({ color, value, onChange, variant = "default" }: DiePickerProps) {
   const [lastPicked, setLastPicked] = useState<number | null>(null);
 
   const isRed = color === "red";
+  const spooky = variant === "spooky";
+  // Accent colour for the selected state; hex so the alpha suffixes below work.
+  const accent = spooky ? (isRed ? "#FF7A00" : "#A855F7") : (isRed ? "#FF2D55" : "#F5F5F5");
+  const glowAnimation = spooky
+    ? isRed ? "glow-pulse-orange 2s ease-in-out infinite" : "glow-pulse-purple 2.2s ease-in-out infinite"
+    : isRed ? "glow-pulse-pink 2s ease-in-out infinite" : "glow-pulse-white 2.2s ease-in-out infinite";
 
   function handlePick(num: number) {
     setLastPicked(num);
@@ -21,25 +29,21 @@ export default function DiePicker({ color, value, onChange }: DiePickerProps) {
     onChange(num);
   }
 
-  const dotGlow = isRed
-    ? { background: "#FF2D55", boxShadow: "0 0 6px #FF2D55" }
+  const dotGlow = spooky || isRed
+    ? { background: accent, boxShadow: `0 0 6px ${accent}` }
     : { background: "#F5F5F5", boxShadow: "0 0 5px rgba(255,255,255,0.5)" };
 
   const dieFaceStyle: React.CSSProperties = {
     width: 88,
     height: 88,
     clipPath: "polygon(30% 0%,70% 0%,100% 30%,100% 70%,70% 100%,30% 100%,0% 70%,0% 30%)",
-    background: value !== null ? (isRed ? "#FF2D5514" : "#F5F5F50C") : "#151515",
-    border: `2px solid ${value !== null ? (isRed ? "#FF2D55" : "#F5F5F5") : "#252525"}`,
+    background: value !== null ? `${accent}${isRed || spooky ? "14" : "0C"}` : "#151515",
+    border: `2px solid ${value !== null ? accent : "#252525"}`,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     transition: "background 0.2s, border-color 0.2s",
-    animation: value !== null
-      ? isRed
-        ? "glow-pulse-pink 2s ease-in-out infinite"
-        : "glow-pulse-white 2.2s ease-in-out infinite"
-      : "none",
+    animation: value !== null ? glowAnimation : "none",
   };
 
   return (
@@ -60,7 +64,7 @@ export default function DiePicker({ color, value, onChange }: DiePickerProps) {
             fontSize: value !== null ? 42 : 30,
             fontWeight: 700,
             lineHeight: 1,
-            color: value !== null ? (isRed ? "#FF2D55" : "#F5F5F5") : "#333",
+            color: value !== null ? accent : "#333",
             transition: "all 0.15s",
           }}
         >
@@ -78,17 +82,17 @@ export default function DiePicker({ color, value, onChange }: DiePickerProps) {
             width: 42,
             height: 42,
             borderRadius: 8,
-            background: selected ? (isRed ? "#FF2D5518" : "#F5F5F510") : "#181818",
-            border: `1px solid ${selected ? (isRed ? "#FF2D55" : "#F5F5F5") : "#2A2A2A"}`,
-            color: selected ? (isRed ? "#FF2D55" : "#F5F5F5") : "#555",
+            background: selected ? `${accent}${isRed || spooky ? "18" : "10"}` : "#181818",
+            border: `1px solid ${selected ? accent : "#2A2A2A"}`,
+            color: selected ? accent : "#555",
             fontFamily: "var(--font-display, monospace)",
             fontSize: 17,
             fontWeight: 700,
             cursor: "pointer",
             transition: "border-color 0.12s, color 0.12s, background 0.12s",
             boxShadow: selected
-              ? isRed
-                ? "0 0 10px rgba(255,45,85,0.32)"
+              ? spooky || isRed
+                ? `0 0 10px ${accent}52`
                 : "0 0 8px rgba(255,255,255,0.16)"
               : "none",
             animation: popping ? "btn-pop 0.28s ease-out" : "none",

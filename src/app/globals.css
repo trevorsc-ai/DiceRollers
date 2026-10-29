@@ -158,3 +158,58 @@ body {
   flex-shrink: 0;
   animation: livePulse 1.4s ease-in-out infinite;
 }
+
+/* ── Halloween (roll page, when the Halloween menu is active) ── */
+@keyframes spooky-flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% {
+    text-shadow: 0 0 10px #FF7A00, 0 0 22px #FF7A00, 0 0 42px rgba(168, 85, 247, 0.55);
+    opacity: 1;
+  }
+  20%, 24%, 55% {
+    text-shadow: none;
+    opacity: 0.6;
+  }
+}
+
+@keyframes glow-pulse-orange {
+  0%, 100% { box-shadow: 0 0 8px #FF7A00, 0 0 18px rgba(255, 122, 0, 0.31); }
+  50%       { box-shadow: 0 0 22px #FF7A00, 0 0 40px rgba(255, 122, 0, 0.44), 0 0 60px rgba(255, 122, 0, 0.13); }
+}
+
+@keyframes glow-pulse-purple {
+  0%, 100% { box-shadow: 0 0 8px #A855F7, 0 0 18px rgba(168, 85, 247, 0.31); }
+  50%       { box-shadow: 0 0 22px #A855F7, 0 0 40px rgba(168, 85, 247, 0.44), 0 0 60px rgba(168, 85, 247, 0.13); }
+}
+
+@keyframes spooky-drift {
+  0%   { transform: translate(0, 0) rotate(-6deg); }
+  25%  { transform: translate(18px, -14px) rotate(4deg); }
+  50%  { transform: translate(-10px, -26px) rotate(-3deg); }
+  75%  { transform: translate(-22px, -8px) rotate(6deg); }
+  100% { transform: translate(0, 0) rotate(-6deg); }
+}
+
+@keyframes spooky-fade {
+  0%, 100% { opacity: 0.15; }
+  50%      { opacity: 0.55; }
+}
+
+.spooky-title {
+  color: #FF7A00;
+  text-shadow: 0 0 10px #FF7A00, 0 0 22px #FF7A00, 0 0 42px rgba(168, 85, 247, 0.55);
+  animation: spooky-flicker 7s ease-in-out infinite;
+}
+
+.neon-text-orange {
+  color: #FF7A00;
+  text-shadow: 0 0 10px rgba(255, 122, 0, 0.6), 0 0 22px rgba(168, 85, 247, 0.35);
+}
+
+.spooky-float {
+  animation: spooky-drift 9s ease-in-out infinite, spooky-fade 6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spooky-title { animation: none; }
+  .spooky-float { animation: none; opacity: 0.3; }
+}

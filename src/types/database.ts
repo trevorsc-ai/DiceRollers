@@ -86,6 +86,7 @@ export type Database = {
           id: number
           is_active: boolean
           logo_url: string | null
+          menu_set: string
           updated_at: string
         }
         Insert: {
@@ -95,6 +96,7 @@ export type Database = {
           id?: number
           is_active?: boolean
           logo_url?: string | null
+          menu_set?: string
           updated_at?: string
         }
         Update: {
@@ -104,6 +106,7 @@ export type Database = {
           id?: number
           is_active?: boolean
           logo_url?: string | null
+          menu_set?: string
           updated_at?: string
         }
         Relationships: []
@@ -494,6 +497,7 @@ export type Database = {
         }[]
       }
       get_user_profile_stats: { Args: { p_username: string }; Returns: Json }
+      set_halloween_menu: { Args: { enabled: boolean }; Returns: undefined }
     }
     Enums: {
       [_ in never]: never
