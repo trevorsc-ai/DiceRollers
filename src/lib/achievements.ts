@@ -509,7 +509,12 @@ export async function evaluateAchievements(
 
   // ── SPECIAL COMBINATIONS (drink-name matched; DD substitutions don't trigger) ──
   for (const combo of SPECIAL_COMBOS) {
-    if (roll.red_drink_name === combo.redDrink && roll.white_drink_name === combo.whiteDrink) {
+    // Any Malört variant (e.g. Halloween's Barrel-Aged Malört) counts as Malort.
+    const whiteMatches =
+      combo.whiteDrink === "Malort"
+        ? isMalort(roll.white_drink_name)
+        : roll.white_drink_name === combo.whiteDrink;
+    if (roll.red_drink_name === combo.redDrink && whiteMatches) {
       queueCompletion(combo.id);
     }
   }
