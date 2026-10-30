@@ -606,7 +606,7 @@ export async function evaluateAchievements(
     if (month === 4 && day === 1) queueCompletion(A.APRIL_FOOLS);
     if (month === 5 && day === 5) queueCompletion(A.CINCO_DE_MAYO);
     if (month === 7 && day === 4) queueCompletion(A.INDEPENDENCE_DAY);
-    if (month === 10 && day === 31) queueCompletion(A.HALLOWEEN);
+    if (month === 10 && (day === 30 || day === 31)) queueCompletion(A.HALLOWEEN);
     if (month === 12 && day === 31) queueCompletion(A.NEW_YEARS_EVE);
     if (day === 13 && holidayDow === 5) queueCompletion(A.FRIDAY_13TH);
 
