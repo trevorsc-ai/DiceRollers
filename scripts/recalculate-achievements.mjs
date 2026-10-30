@@ -86,6 +86,8 @@ const SPECIAL_COMBOS = [
   { id: "the_regular",         redDrink: "Mickeys",      whiteDrink: "Malort" },
   { id: "hot_bitch",           redDrink: "Raging Bitch", whiteDrink: "Hot Hooch" },
   { id: "common_man",          redDrink: "High Life",    whiteDrink: "Jim Beam" },
+  { id: "forget_the_alamo",    redDrink: "Modelo",       whiteDrink: "Espolon" },
+  { id: "border_town",         redDrink: "Modelo",       whiteDrink: "Jim Beam" },
 ];
 
 // ── Achievement evaluation (full recalc from all rolls) ───────────────────────

@@ -46,6 +46,7 @@ export const ACHIEVEMENT_IDS = {
   FIRE_AND_ICE: "fire_and_ice",
   GEN_ALPHA: "gen_alpha",
   FORGET_THE_ALAMO: "forget_the_alamo",
+  BORDER_TOWN: "border_town",
 
   // Clocking In
   SUNDAY_FUNDAY: "sunday_funday",
