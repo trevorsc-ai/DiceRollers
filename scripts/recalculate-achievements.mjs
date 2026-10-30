@@ -402,7 +402,7 @@ function computeAchievements(rolls) {
       markComplete("cinco_de_mayo");
     if (!results["independence_day"]?.completed_at && month === 7 && day === 4)
       markComplete("independence_day");
-    if (!results["halloween"]?.completed_at && month === 10 && (day === 30 || day === 31))
+    if (!results["halloween"]?.completed_at && month === 10 && (day === 31 || (day === 30 && year >= 2026)))
       markComplete("halloween");
     if (!results["new_years_eve"]?.completed_at && month === 12 && day === 31)
       markComplete("new_years_eve");
