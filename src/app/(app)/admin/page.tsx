@@ -5,6 +5,8 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { createClient } from "@/lib/supabase/client";
 import { Shield, List, TrendingUp, GraduationCap } from "lucide-react";
 import Link from "next/link";
+import { appFlagQueryKey, fetchAppFlag } from "@/lib/queries/stats";
+import { wrappedYear } from "@/lib/wrapped";
 
 interface UserRow {
   id: string;
@@ -56,6 +58,32 @@ export default function AdminPage() {
       if (ctx?.previous) queryClient.setQueryData(ADMIN_USERS_KEY, ctx.previous);
     },
   });
+
+  const { data: wrappedLive = false } = useQuery({
+    queryKey: appFlagQueryKey("wrapped_live"),
+    queryFn: () => fetchAppFlag(supabase, "wrapped_live"),
+  });
+
+  // Not optimistic on purpose (same as the Halloween menu): this releases
+  // Wrapped to every roller, so the switch only flips once the DB confirms.
+  const toggleWrapped = useMutation({
+    mutationFn: async (enabled: boolean) => {
+      const { error } = await supabase.rpc("set_app_flag", { flag_key: "wrapped_live", flag_enabled: enabled });
+      if (error) throw error;
+    },
+    onError: (err) => {
+      console.error("set_app_flag(wrapped_live) failed", err);
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: appFlagQueryKey("wrapped_live") }),
+  });
+
+  function handleToggleWrapped() {
+    const enabling = !wrappedLive;
+    const message = enabling
+      ? "Release Wrapped to everyone? A banner shows up on Stats and Feed."
+      : "Hide Wrapped again? Only admins will be able to open it.";
+    if (confirm(message)) toggleWrapped.mutate(enabling);
+  }
 
   const [resetState, setResetState] = useState<{
     userId: string | null;
@@ -163,6 +191,40 @@ export default function AdminPage() {
             <p className="text-text-secondary text-xs">Edit drink names and logos</p>
           </div>
         </Link>
+        <div
+          className="bg-surface rounded-2xl p-4 border flex items-center justify-between gap-3"
+          style={{ borderColor: wrappedLive ? "#FFD600" : "#252525" }}
+        >
+          <div className="min-w-0">
+            <p className="text-text-primary font-medium">🎁 Wrapped {wrappedYear()}</p>
+            <p className="text-text-secondary text-xs">
+              {wrappedLive ? "LIVE for everyone." : "Hidden. Only admins can open it."}{" "}
+              <Link href="/wrapped" className="text-neon-gold underline">
+                Preview
+              </Link>
+            </p>
+            {toggleWrapped.error && (
+              <p className="text-neon-pink text-xs mt-1">Couldn&apos;t switch Wrapped: {toggleWrapped.error.message}</p>
+            )}
+          </div>
+          <button
+            role="switch"
+            aria-checked={wrappedLive}
+            aria-label="Release Wrapped"
+            onClick={handleToggleWrapped}
+            disabled={toggleWrapped.isPending}
+            className="relative shrink-0 w-14 h-8 rounded-full border transition-colors disabled:opacity-50"
+            style={{
+              background: wrappedLive ? "#FFD600" : "#181818",
+              borderColor: wrappedLive ? "#FFD600" : "#2A2A2A",
+            }}
+          >
+            <span
+              className="absolute top-1 w-6 h-6 rounded-full bg-white transition-all"
+              style={{ left: wrappedLive ? "calc(100% - 1.75rem)" : "0.25rem" }}
+            />
+          </button>
+        </div>
         <Link
           href="/learn"
           className="flex items-center gap-3 bg-surface rounded-2xl p-4 border border-surface-2 hover:border-neon-pink/40 transition-colors"

@@ -15,6 +15,7 @@ import { formatRelativeTime } from "@/lib/format";
 import { useDailyDoubleLogos } from "@/hooks/useDailyDoubleLogos";
 import { useScrollSentinel } from "@/hooks/useScrollSentinel";
 import { RollCard } from "@/components/roll/RollCard";
+import { WrappedBanner } from "@/components/WrappedBanner";
 import { fetchFeedPage, type FeedRoll, type RollsPage } from "@/lib/queries/rolls";
 
 export default function FeedPage() {
@@ -115,6 +116,9 @@ export default function FeedPage() {
       </div>
 
       <div className="px-[18px] pb-[84px]">
+        <div className="mb-3 empty:hidden">
+          <WrappedBanner />
+        </div>
         {loading ? (
           <div className="text-center text-text-secondary py-12">Loading...</div>
         ) : rolls.length === 0 ? (
