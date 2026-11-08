@@ -1,3 +1,13 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { createClient } from "@/lib/supabase/client";
+import {
+  fetchPunchCardClubRoster,
+  punchCardClubRosterQueryKey,
+} from "@/lib/queries/stats";
+
 interface ClubMember {
   rank: number;
   user: string;
@@ -23,7 +33,17 @@ function rankColor(rank: number): string {
   return T.textDim;
 }
 
-function RosterRow({ m }: { m: ClubMember }) {
+interface RosterRowProps {
+  rank: number;
+  user: string;
+  you: boolean;
+  /** Small dim label after the username, e.g. "CARD #2" or "3 CARDS". */
+  tag: string;
+  value: number;
+  unit: string;
+}
+
+function RosterRow({ m }: { m: RosterRowProps }) {
   const c = rankColor(m.rank);
   const isYou = m.you;
   return (
@@ -79,7 +99,7 @@ function RosterRow({ m }: { m: ClubMember }) {
             fontWeight: 400,
           }}
         >
-          CARD #{m.cardNumber}
+          {m.tag}
         </span>
         {isYou && (
           <span
@@ -116,7 +136,7 @@ function RosterRow({ m }: { m: ClubMember }) {
           color: m.rank === 1 ? T.gold : isYou ? T.pink : T.text,
         }}
       >
-        {m.rolls}
+        {m.value}
         <span
           style={{
             color: m.rank === 1 ? T.gold + "aa" : T.textDim,
@@ -126,9 +146,183 @@ function RosterRow({ m }: { m: ClubMember }) {
             letterSpacing: "0.14em",
           }}
         >
-          ROLLS
+          {m.unit}
         </span>
       </span>
+    </div>
+  );
+}
+
+
+type RosterTab = "members" | "completions";
+
+function TabButton({
+  active,
+  label,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      style={{
+        flex: 1,
+        fontFamily: "Space Mono, monospace",
+        fontSize: 10,
+        fontWeight: 700,
+        letterSpacing: "0.18em",
+        padding: "8px 0",
+        borderRadius: 8,
+        cursor: "pointer",
+        border: `1px solid ${active ? T.pink + "80" : T.border}`,
+        background: active ? `${T.pink}18` : "transparent",
+        color: active ? T.pink : T.textDim,
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+function PunchCardClubModal({
+  initialTab,
+  currentUserId,
+  onClose,
+}: {
+  initialTab: RosterTab;
+  currentUserId: string | null;
+  onClose: () => void;
+}) {
+  const supabase = createClient();
+  const [tab, setTab] = useState<RosterTab>(initialTab);
+
+  const roster = useQuery({
+    queryKey: punchCardClubRosterQueryKey,
+    queryFn: () => fetchPunchCardClubRoster(supabase),
+  });
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const rows: RosterRowProps[] =
+    tab === "members"
+      ? (roster.data?.members ?? []).map((m, i) => ({
+          rank: i + 1,
+          user: m.username,
+          you: m.userId === currentUserId,
+          tag: `${m.completions} ${m.completions === 1 ? "CARD" : "CARDS"}`,
+          value: m.bestRolls,
+          unit: "BEST",
+        }))
+      : (roster.data?.completions ?? []).map((c, i) => ({
+          rank: i + 1,
+          user: c.username,
+          you: c.userId === currentUserId,
+          tag: `CARD #${c.cardNumber}`,
+          value: c.rolls,
+          unit: "ROLLS",
+        }));
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-6"
+      onClick={onClose}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Punch Card Club roster"
+        className="bg-surface border border-surface-2 rounded-3xl p-5 w-full max-w-sm animate-scale-in shadow-2xl flex flex-col max-h-[88vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4 shrink-0">
+          <span style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <span style={{ fontSize: 16, lineHeight: "1" }}>👊</span>
+            <span
+              style={{
+                fontFamily: "Space Mono, monospace",
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: "0.22em",
+                color: T.text,
+              }}
+            >
+              PUNCH CARD CLUB
+            </span>
+          </span>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="text-text-secondary hover:text-text-primary transition-colors text-lg leading-none"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }} className="shrink-0">
+          <TabButton
+            active={tab === "members"}
+            label={`MEMBERS${roster.data ? ` · ${roster.data.members.length}` : ""}`}
+            onClick={() => setTab("members")}
+          />
+          <TabButton
+            active={tab === "completions"}
+            label={`COMPLETIONS${roster.data ? ` · ${roster.data.completions.length}` : ""}`}
+            onClick={() => setTab("completions")}
+          />
+        </div>
+
+        {/* Column header */}
+        <div
+          className="shrink-0"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            fontFamily: "Space Mono, monospace",
+            fontSize: 8,
+            letterSpacing: "0.2em",
+            color: T.textMute,
+            fontWeight: 700,
+            paddingBottom: 8,
+            marginBottom: 8,
+            borderBottom: `1px dashed ${T.border}`,
+          }}
+        >
+          <span style={{ minWidth: 18 }}>#</span>
+          <span style={{ flex: 1 }}>MEMBER</span>
+          <span>{tab === "members" ? "FASTEST" : "ROLLS"}</span>
+        </div>
+
+        {/* List */}
+        <div className="overflow-y-auto" style={{ padding: "4px 8px", margin: "0 -8px" }}>
+          {roster.isPending ? (
+            <p style={{ fontFamily: "Space Mono, monospace", fontSize: 10, letterSpacing: "0.14em", color: T.textMute, textAlign: "center", padding: "24px 0" }}>
+              LOADING...
+            </p>
+          ) : roster.isError ? (
+            <p style={{ fontFamily: "Space Mono, monospace", fontSize: 10, letterSpacing: "0.14em", color: T.pink, textAlign: "center", padding: "24px 0" }}>
+              COULDN&apos;T LOAD THE CLUB
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+              {rows.map((r) => (
+                <RosterRow key={`${tab}-${r.rank}`} m={r} />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -137,12 +331,29 @@ export function PunchCardClubSection({
   members,
   totalMembers,
   totalCompletions,
+  currentUserId = null,
 }: {
   members: ClubMember[];
   totalMembers: number;
   totalCompletions: number;
+  currentUserId?: string | null;
 }) {
+  const [openTab, setOpenTab] = useState<RosterTab | null>(null);
+
   if (members.length === 0) return null;
+
+  const linkStyle = {
+    background: "transparent",
+    border: "none",
+    padding: 0,
+    cursor: "pointer",
+    font: "inherit",
+    letterSpacing: "inherit",
+    color: T.pink,
+    textDecoration: "underline",
+    textDecorationStyle: "dotted",
+    textUnderlineOffset: 3,
+  } as const;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -179,7 +390,13 @@ export function PunchCardClubSection({
             textAlign: "right",
           }}
         >
-          {totalMembers} MEMBERS · {totalCompletions} COMPLETIONS
+          <button type="button" style={linkStyle} onClick={() => setOpenTab("members")}>
+            {totalMembers} MEMBERS
+          </button>
+          {" · "}
+          <button type="button" style={linkStyle} onClick={() => setOpenTab("completions")}>
+            {totalCompletions} COMPLETIONS
+          </button>
         </span>
       </div>
 
@@ -229,10 +446,28 @@ export function PunchCardClubSection({
         {/* Rows */}
         <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
           {members.map((m, i) => (
-            <RosterRow key={i} m={m} />
+            <RosterRow
+              key={i}
+              m={{
+                rank: m.rank,
+                user: m.user,
+                you: m.you,
+                tag: `CARD #${m.cardNumber}`,
+                value: m.rolls,
+                unit: "ROLLS",
+              }}
+            />
           ))}
         </div>
       </div>
+
+      {openTab && (
+        <PunchCardClubModal
+          initialTab={openTab}
+          currentUserId={currentUserId}
+          onClose={() => setOpenTab(null)}
+        />
+      )}
     </div>
   );
 }

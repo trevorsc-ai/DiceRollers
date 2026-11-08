@@ -226,6 +226,7 @@ export default function StatsView({ userId }: { userId: string }) {
                 members={global.data.club.members}
                 totalMembers={global.data.club.total}
                 totalCompletions={global.data.club.completions}
+                currentUserId={userId}
               />
             )}
 
