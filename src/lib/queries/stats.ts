@@ -1,5 +1,11 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PodiumLeaderboardData, PodiumRoller } from "@/components/PodiumLeaderboard";
+import {
+  SUPERLATIVE_MIN_ROLLS,
+  wrappedWindow,
+  type WrappedGlobal,
+  type WrappedPersonal,
+} from "@/lib/wrapped";
 
 /** Shared stats shape returned by both RPCs. */
 export interface StatsShape {
@@ -188,4 +194,54 @@ export async function fetchPunchCardClubRoster(
   );
 
   return { completions, members };
+}
+
+/* ── Wrapped (year-in-review) ────────────────────────────────────── */
+
+export const wrappedQueryKey = (userId: string, year: number) => ["wrapped", userId, year] as const;
+export const wrappedGlobalQueryKey = (year: number) => ["wrappedGlobal", year] as const;
+
+/** One roller's year. Shape documented in `WrappedPersonal`. */
+export async function fetchWrapped(
+  supabase: SupabaseClient,
+  userId: string,
+  year: number
+): Promise<WrappedPersonal> {
+  const { start, end } = wrappedWindow(year);
+  const { data, error } = await supabase.rpc("get_wrapped", { p_user: userId, p_start: start, p_end: end });
+  if (error) {
+    console.error("[fetchWrapped] get_wrapped failed", { userId, year, error });
+    throw error;
+  }
+  return data as WrappedPersonal;
+}
+
+/** Bar-wide year, the Heavyweight head-to-head, and superlative metrics. */
+export async function fetchWrappedGlobal(supabase: SupabaseClient, year: number): Promise<WrappedGlobal> {
+  const { start, end } = wrappedWindow(year);
+  const { data, error } = await supabase.rpc("get_wrapped_global", {
+    p_start: start,
+    p_end: end,
+    p_min_rolls: SUPERLATIVE_MIN_ROLLS,
+  });
+  if (error) {
+    console.error("[fetchWrappedGlobal] get_wrapped_global failed", { year, error });
+    throw error;
+  }
+  return data as WrappedGlobal;
+}
+
+/* ── App flags (admin-controlled switches, e.g. `wrapped_live`) ──── */
+
+export type AppFlagKey = "wrapped_live";
+
+export const appFlagQueryKey = (key: AppFlagKey) => ["appFlag", key] as const;
+
+export async function fetchAppFlag(supabase: SupabaseClient, key: AppFlagKey): Promise<boolean> {
+  const { data, error } = await supabase.from("app_flags").select("enabled").eq("key", key).maybeSingle();
+  if (error) {
+    console.error("[fetchAppFlag] failed to read flag", { key, error });
+    throw error;
+  }
+  return data?.enabled ?? false;
 }
