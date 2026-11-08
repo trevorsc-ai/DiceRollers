@@ -279,7 +279,7 @@ export function buildSlides({ personal: p, global: g, superlatives, userId, year
         <Big color={PINK}>{n.toLocaleString()}</Big>
         <Kicker>ROLLS</Kicker>
         <Line>
-          <Hi>{plural(n * 2, "drink")}</Hi>. <Hi>{plural(p.nights, "night")}</Hi> at Jackie&apos;s.
+          <Hi>{plural(n * 2, "drink")}</Hi>. <Hi>{plural(p.nights, "night")}</Hi> of rolling dice.
         </Line>
         {p.rollers > 1 && (
           <Sub>That puts you in the top {topPercent(p.rollers_ahead, p.rollers)}% of rollers.</Sub>
@@ -644,12 +644,12 @@ export function buildSlides({ personal: p, global: g, superlatives, userId, year
     )
   );
 
-  // ── The Year at Jackie's ──
+  // ── The Year of Rolling Dice ──
   add(
     "bar-intro",
     GREEN,
     <>
-      <Kicker color={GREEN}>THE YEAR AT JACKIE&apos;S</Kicker>
+      <Kicker color={GREEN}>THE YEAR OF ROLLING DICE</Kicker>
       <Big color={GREEN}>{g.total_rolls.toLocaleString()}</Big>
       <Kicker>ROLLS</Kicker>
       <Line>
@@ -709,7 +709,7 @@ export function buildSlides({ personal: p, global: g, superlatives, userId, year
       "bar-fairness",
       PURPLE,
       <>
-        <Kicker color={PURPLE}>ARE JACKIE&apos;S DICE FAIR?</Kicker>
+        <Kicker color={PURPLE}>ARE THE DICE FAIR?</Kicker>
         <VerdictLine die="Red die" v={rv} />
         <VerdictLine die="White die" v={wv} />
         <Sub>
