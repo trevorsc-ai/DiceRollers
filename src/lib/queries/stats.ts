@@ -102,3 +102,90 @@ export async function fetchGlobalStatsPage(
 
   return { stats, club, podium };
 }
+
+/* ── Punch Card Club: full roster (members + every completion) ─────── */
+
+export interface PunchCardCompletionRow {
+  userId: string;
+  username: string;
+  cardNumber: number;
+  rolls: number;
+  earnedAt: string;
+}
+
+export interface PunchCardClubRosterMember {
+  userId: string;
+  username: string;
+  completions: number;
+  bestRolls: number;
+  lastEarnedAt: string;
+}
+
+export interface PunchCardClubRoster {
+  /** Every completion, fastest first (same order as the club leaderboard). */
+  completions: PunchCardCompletionRow[];
+  /** One row per member, most completions first, then fastest card. */
+  members: PunchCardClubRosterMember[];
+}
+
+export const punchCardClubRosterQueryKey = ["punchCardClubRoster"] as const;
+
+export async function fetchPunchCardClubRoster(
+  supabase: SupabaseClient
+): Promise<PunchCardClubRoster> {
+  // Same filter as get_punch_card_club() so counts line up with the header.
+  const { data, error } = await supabase
+    .from("punch_card_completions")
+    .select("user_id, completion_number, rolls_to_complete, earned_at, profiles(username)")
+    .not("rolls_to_complete", "is", null)
+    .order("rolls_to_complete", { ascending: true })
+    .order("earned_at", { ascending: true });
+
+  if (error) {
+    console.error("[fetchPunchCardClubRoster] failed to load completions", error);
+    throw error;
+  }
+
+  type Row = {
+    user_id: string;
+    completion_number: number;
+    rolls_to_complete: number;
+    earned_at: string;
+    profiles: { username: string } | { username: string }[] | null;
+  };
+
+  const completions: PunchCardCompletionRow[] = ((data ?? []) as Row[]).map((r) => {
+    const profile = Array.isArray(r.profiles) ? r.profiles[0] : r.profiles;
+    return {
+      userId: r.user_id,
+      username: profile?.username ?? "unknown",
+      cardNumber: r.completion_number,
+      rolls: r.rolls_to_complete,
+      earnedAt: r.earned_at,
+    };
+  });
+
+  const byUser = new Map<string, PunchCardClubRosterMember>();
+  for (const c of completions) {
+    const m = byUser.get(c.userId);
+    if (!m) {
+      byUser.set(c.userId, {
+        userId: c.userId,
+        username: c.username,
+        completions: 1,
+        bestRolls: c.rolls,
+        lastEarnedAt: c.earnedAt,
+      });
+    } else {
+      m.completions += 1;
+      m.bestRolls = Math.min(m.bestRolls, c.rolls);
+      if (c.earnedAt > m.lastEarnedAt) m.lastEarnedAt = c.earnedAt;
+    }
+  }
+
+  const members = Array.from(byUser.values()).sort(
+    (a, b) => b.completions - a.completions || a.bestRolls - b.bestRolls
+  );
+
+  return { completions, members };
+}
