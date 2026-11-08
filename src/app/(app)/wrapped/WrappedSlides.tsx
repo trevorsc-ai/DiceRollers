@@ -713,7 +713,7 @@ export function buildSlides({ personal: p, global: g, superlatives, userId, year
         <VerdictLine die="Red die" v={rv} />
         <VerdictLine die="White die" v={wv} />
         <Sub>
-          {wv.p >= 0.05 ? "Malört hate is not a conspiracy." : "Okay... maybe the Malört thing is a conspiracy."}
+          {wv.p >= 0.05 ? "Stop complaining about the dice and drink or something." : "Okay... maybe the Malört thing is a conspiracy."}
         </Sub>
         <FaceChart freq={g.red_freq} color={PINK} title="● EVERY RED ROLL" />
         <FaceChart freq={g.white_freq} color={WHITE} title="○ EVERY WHITE ROLL" />
