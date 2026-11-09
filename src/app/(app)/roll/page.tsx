@@ -10,6 +10,7 @@ import MalortCelebration from "@/components/MalortCelebration";
 import HalloweenOverlay from "@/components/HalloweenOverlay";
 import AchievementModal from "@/components/AchievementModal";
 import { DrinkBadge } from "@/components/roll/DrinkBadge";
+import { WrappedBanner } from "@/components/WrappedBanner";
 import { Check, Settings } from "lucide-react";
 import type { AchievementInfo } from "@/lib/achievements";
 import { activeMenuQueryKey, fetchActiveMenu, isHalloweenMenu } from "@/lib/queries/menu";
@@ -348,6 +349,11 @@ export default function RollPage() {
             </button>
           </div>
         )}
+
+        {/* Always the last thing on the page once an admin releases Wrapped */}
+        <div className="empty:hidden mt-1">
+          <WrappedBanner />
+        </div>
       </div>
     </div>
   );
