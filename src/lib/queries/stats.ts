@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { PodiumLeaderboardData, PodiumRoller } from "@/components/PodiumLeaderboard";
 import {
-  SUPERLATIVE_MIN_ROLLS,
+  AWARD_POOL_MIN_ROLLS,
   wrappedWindow,
   type WrappedGlobal,
   type WrappedPersonal,
@@ -223,7 +223,7 @@ export async function fetchWrappedGlobal(supabase: SupabaseClient, year: number)
   const { data, error } = await supabase.rpc("get_wrapped_global", {
     p_start: start,
     p_end: end,
-    p_min_rolls: SUPERLATIVE_MIN_ROLLS,
+    p_min_rolls: AWARD_POOL_MIN_ROLLS,
   });
   if (error) {
     console.error("[fetchWrappedGlobal] get_wrapped_global failed", { year, error });
