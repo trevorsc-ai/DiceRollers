@@ -120,6 +120,9 @@ export interface RollerMetrics {
   third_wheel_nights: number;
   monday_nights: number;
   avg_night_min: number | null;
+  /** Earliest / latest roll of the night, minutes since 5 AM (migration 077). */
+  min_night_min: number | null;
+  max_night_min: number | null;
   likes_given: number;
   likes_received: number;
 }
@@ -149,8 +152,20 @@ export interface WrappedGlobal {
 
 // ─── Window ──────────────────────────────────────────────────
 
-/** Minimum rolls in the window to be eligible for a superlative. */
+/**
+ * Minimum rolls in the window to be eligible for a superlative. Everyone at or
+ * above this gets exactly one award.
+ */
 export const SUPERLATIVE_MIN_ROLLS = 15;
+
+/** Clockwork's own qualifier: 8 rolls, lower than the general floor above. */
+export const CLOCKWORK_MIN_ROLLS = 8;
+
+/**
+ * The lowest roll count any award accepts. The RPC returns metrics for every
+ * roller at or above this; `assignSuperlatives` applies each award's own floor.
+ */
+export const AWARD_POOL_MIN_ROLLS = Math.min(SUPERLATIVE_MIN_ROLLS, CLOCKWORK_MIN_ROLLS);
 
 /**
  * Which year Wrapped covers. It drops in early December, so December shows
@@ -352,6 +367,8 @@ export interface AwardDef {
    *   - "cohort": standardised against the other eligible rollers
    */
   kind: "z" | "cohort";
+  /** Rolls needed to compete for this award (default `SUPERLATIVE_MIN_ROLLS`). */
+  minRolls?: number;
   score: (m: RollerMetrics) => number | null;
   blurb: (m: RollerMetrics) => string;
 }
@@ -466,6 +483,21 @@ export const AWARDS: AwardDef[] = [
       m.nights >= 8 && m.gap_mean && m.gap_sd != null ? -(m.gap_sd / m.gap_mean) : null,
     blurb: (m) =>
       `Rolled every ${round1(m.gap_mean ?? 0)} days, give or take ${round1(m.gap_sd ?? 0)}. Set your watch by it.`,
+  },
+  {
+    id: "clockwork",
+    emoji: "⏰",
+    title: "Clockwork",
+    kind: "cohort",
+    minRolls: CLOCKWORK_MIN_ROLLS,
+    // Narrowest time-of-day window wins. night_min runs from 5 AM, so a roll
+    // after midnight sorts after the evening ones and the window never wraps.
+    score: (m) =>
+      m.min_night_min == null || m.max_night_min == null ? null : -(m.max_night_min - m.min_night_min),
+    blurb: (m) =>
+      `All ${m.rolls} rolls landed between ${formatNightMinutes(m.min_night_min ?? 0)} and ${formatNightMinutes(
+        m.max_night_min ?? 0
+      )}. Same window, every time.`,
   },
   {
     id: "peer_pressure",
@@ -586,7 +618,9 @@ function sd(xs: number[]): number {
  * The yearbook rule. Score every eligible roller on every award, make the
  * scores comparable (fair-dice z, or z within the cohort), then hand out
  * awards greedily from the strongest score down. Nobody gets two awards and
- * no award goes to two people. Rollers left over get the fallback.
+ * no award goes to two people. Rollers at or above `SUPERLATIVE_MIN_ROLLS` who
+ * are left over get the fallback; a roller below it only appears by winning an
+ * award with a lower floor (Clockwork).
  */
 export function assignSuperlatives(metrics: RollerMetrics[]): Superlative[] {
   const eligible = metrics.filter((m) => m.rolls >= SUPERLATIVE_MIN_ROLLS);
@@ -595,7 +629,11 @@ export function assignSuperlatives(metrics: RollerMetrics[]): Superlative[] {
   const candidates: Candidate[] = [];
 
   for (const award of AWARDS) {
-    const raw = eligible
+    // Each award has its own roll floor (Clockwork takes 8+), so it can crown a
+    // roller who is below the general floor. Everyone else needs `eligible`.
+    const floor = award.minRolls ?? SUPERLATIVE_MIN_ROLLS;
+    const raw = metrics
+      .filter((m) => m.rolls >= floor)
       .map((m) => ({ m, v: award.score(m) }))
       .filter((x): x is { m: RollerMetrics; v: number } => x.v != null && Number.isFinite(x.v));
     if (raw.length === 0) continue;
