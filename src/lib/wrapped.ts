@@ -153,16 +153,27 @@ export interface WrappedGlobal {
 export const SUPERLATIVE_MIN_ROLLS = 15;
 
 /**
- * Which year Wrapped covers. It drops in early December, so December shows
- * the current year; January still shows last year's.
+ * Which year Wrapped covers. Season Y starts on Nov 1 of Y (so admins can
+ * preview it before the December release) and stays on screen until Oct 31 of
+ * Y+1, so after the window closes the deck stays pinned to the finished year
+ * instead of rolling over to an empty new one.
  */
 export function wrappedYear(now: Date = new Date()): number {
-  return now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
+  return now.getMonth() >= 10 ? now.getFullYear() : now.getFullYear() - 1;
 }
 
-/** Jan 1 – Dec 1 inclusive, by bar-night date. */
+/** True during December, the month Wrapped is live and still counting new rolls. */
+export function isWrappedDecember(now: Date = new Date()): boolean {
+  return now.getMonth() === 11;
+}
+
+/**
+ * Jan 1 – Dec 31 inclusive, by bar-night date (a night runs 5 AM to 4:59 AM, so
+ * the last night of the year is Dec 31 even for after-midnight rolls). Rolls
+ * dated in January fall outside it, which is what freezes a finished year.
+ */
 export function wrappedWindow(year: number): { start: string; end: string } {
-  return { start: `${year}-01-01`, end: `${year}-12-01` };
+  return { start: `${year}-01-01`, end: `${year}-12-31` };
 }
 
 // ─── Fair-dice baselines ─────────────────────────────────────

@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import BottomNav from "@/components/layout/BottomNav";
 import TwinsiesReconciler from "@/components/TwinsiesReconciler";
+import WrappedPopup from "@/components/WrappedPopup";
 
 export default async function AppLayout({
   children,
@@ -28,6 +29,7 @@ export default async function AppLayout({
       </main>
       <BottomNav />
       <TwinsiesReconciler />
+      <WrappedPopup userId={user.id} />
     </div>
   );
 }
