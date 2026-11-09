@@ -5,6 +5,7 @@ import {
   wrappedWindow,
   type WrappedGlobal,
   type WrappedPersonal,
+  type WrappedPour,
 } from "@/lib/wrapped";
 
 /** Shared stats shape returned by both RPCs. */
@@ -229,6 +230,23 @@ export async function fetchWrappedGlobal(supabase: SupabaseClient, year: number)
     throw error;
   }
   return data as WrappedGlobal;
+}
+
+export const wrappedPourQueryKey = (userId: string, year: number) => ["wrappedPour", userId, year] as const;
+
+/** Daily Double counts (yours and the bar's) for the ounces slides. */
+export async function fetchWrappedPour(
+  supabase: SupabaseClient,
+  userId: string,
+  year: number
+): Promise<WrappedPour> {
+  const { start, end } = wrappedWindow(year);
+  const { data, error } = await supabase.rpc("get_wrapped_pour", { p_user: userId, p_start: start, p_end: end });
+  if (error) {
+    console.error("[fetchWrappedPour] get_wrapped_pour failed", { userId, year, error });
+    throw error;
+  }
+  return data as WrappedPour;
 }
 
 /* ── App flags (admin-controlled switches, e.g. `wrapped_live`) ──── */

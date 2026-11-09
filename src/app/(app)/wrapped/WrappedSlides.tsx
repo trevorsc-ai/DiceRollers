@@ -9,10 +9,14 @@ import { formatShortDate, getNeonGlow } from "@/lib/format";
 import {
   EXPECTED_ROLLS,
   MONTHS_SHORT,
+  OZ_BEER,
+  OZ_PER_GALLON,
+  OZ_SHOT,
   P_COMBO,
   P_DOUBLES,
   P_FACE,
   SUPERLATIVE_MIN_ROLLS,
+  VESSELS,
   WEEKDAYS,
   argMax,
   argMin,
@@ -23,18 +27,23 @@ import {
   formatNightMinutes,
   formatP,
   formatSigma,
+  formatVesselCount,
   normalCdf,
   oneInN,
   pickPersona,
+  pourOunces,
   round1,
   topPercent,
+  vesselLadder,
   type CollectionRace,
   type DieVerdict,
   type Superlative,
   type WrappedCombo,
   type WrappedGlobal,
   type WrappedPersonal,
+  type WrappedPour,
 } from "@/lib/wrapped";
+import { VesselGlyph, VesselUnits } from "./PourGlyphs";
 
 export interface Slide {
   key: string;
@@ -202,6 +211,40 @@ function RaceRow({
   return <StatRow label={label} value={value} />;
 }
 
+/**
+ * The same ounces in the neighbouring vessels, best fit highlighted. Shows
+ * three rungs below the pick and one just-short rung above it.
+ */
+function LadderCard({ oz, color }: { oz: number; color: string }) {
+  const { best, rows } = vesselLadder(oz);
+  return (
+    <Card>
+      {[...rows].reverse().map((v) => {
+        const count = oz / v.oz;
+        const on = v.id === best.id;
+        return (
+          <div
+            key={v.id}
+            className="flex items-center gap-2.5 py-2 border-b border-surface-2 last:border-0 text-[13px]"
+            style={{ color: on ? color : undefined }}
+          >
+            <span className="w-6 flex justify-center shrink-0">
+              <VesselGlyph id={v.id} size={22} />
+            </span>
+            <span className={on ? "" : "text-text-primary"}>
+              {count === 1 ? v.one : v.many}
+              {on && <span className="font-display text-[8px] tracking-[0.18em] ml-1.5">BEST FIT</span>}
+            </span>
+            <span className="font-display text-[14px] ml-auto" style={{ color: on ? color : WHITE }}>
+              {formatVesselCount(count)}
+            </span>
+          </div>
+        );
+      })}
+    </Card>
+  );
+}
+
 function DualMonthBars({ a, b, colorA, colorB }: { a: number[]; b: number[]; colorA: string; colorB: string }) {
   const max = Math.max(...a, ...b, 1);
   const barAreaH = 64;
@@ -241,11 +284,12 @@ export interface BuildSlidesInput {
   personal: WrappedPersonal;
   global: WrappedGlobal;
   superlatives: Superlative[];
+  pour: WrappedPour;
   userId: string;
   year: number;
 }
 
-export function buildSlides({ personal: p, global: g, superlatives, userId, year }: BuildSlidesInput): Slide[] {
+export function buildSlides({ personal: p, global: g, superlatives, pour, userId, year }: BuildSlidesInput): Slide[] {
   const slides: Slide[] = [];
   const n = p.total_rolls;
   const add = (key: string, accent: string, content: ReactNode) => slides.push({ key, accent, content });
@@ -884,6 +928,59 @@ export function buildSlides({ personal: p, global: g, superlatives, userId, year
         {i === 0 && (
           <Sub>One award per roller ({SUPERLATIVE_MIN_ROLLS}+ rolls), scored against fair dice and each other.</Sub>
         )}
+      </>
+    );
+  }
+
+  // ── The Pour: your ounces, then the bar's ──
+  if (n > 0) {
+    const myPour = pourOunces(n, pour.personal_daily_doubles);
+    const { best } = vesselLadder(myPour.total);
+    const count = myPour.total / best.oz;
+    const gallons = myPour.total / OZ_PER_GALLON;
+    const shotPct = Math.round((myPour.shots / myPour.total) * 100);
+    add(
+      "pour-you",
+      GOLD,
+      <>
+        <Kicker color={GOLD}>YOUR POUR</Kicker>
+        <Big color={GOLD}>{formatVesselCount(count)}</Big>
+        <Kicker>{(count === 1 ? best.one : best.many).toUpperCase()}</Kicker>
+        <VesselUnits id={best.id} count={count} />
+        <Line>
+          <Hi>{Math.round(myPour.total).toLocaleString()} oz</Hi>
+          {gallons >= 1 && ` (${round1(gallons)} gallons)`} poured, {plural(n, "roll")} of beer and shots.
+        </Line>
+        <LadderCard oz={myPour.total} color={GOLD} />
+        <Sub>
+          {n >= 10
+            ? `Shots were ${shotPct}% of it. Beer did the heavy lifting.`
+            : `Every roll is a ${OZ_BEER} oz beer and a ${OZ_SHOT} oz shot.`}
+        </Sub>
+      </>
+    );
+  }
+
+  if (g.total_rolls > 0) {
+    const bar = pourOunces(g.total_rolls, pour.bar_daily_doubles);
+    const { best } = vesselLadder(bar.total);
+    const count = bar.total / best.oz;
+    const hotTub = VESSELS.find((v) => v.id === "hottub");
+    const hotTubPct = hotTub ? Math.round((bar.total / hotTub.oz) * 100) : 100;
+    add(
+      "pour-bar",
+      GREEN,
+      <>
+        <Kicker color={GREEN}>THE BAR&apos;S POUR</Kicker>
+        <Big color={GREEN}>{formatVesselCount(count)}</Big>
+        <Kicker>{(count === 1 ? best.one : best.many).toUpperCase()}</Kicker>
+        <VesselUnits id={best.id} count={count} />
+        <Line>
+          <Hi color={GREEN}>{Math.round(bar.total).toLocaleString()} oz</Hi> across{" "}
+          <Hi color={GREEN}>{plural(g.total_rolls * 2, "drink")}</Hi>.
+        </Line>
+        <LadderCard oz={bar.total} color={GREEN} />
+        {hotTubPct >= 1 && hotTubPct < 100 && <Sub>A hot tub would still be only {hotTubPct}% full.</Sub>}
       </>
     );
   }
