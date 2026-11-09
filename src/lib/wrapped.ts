@@ -705,3 +705,93 @@ export function pickPersona(p: WrappedPersonal): Persona {
   }
   return { title: "THE WILDCARD", emoji: "🃏", line: `No pattern, no plan. See you ${topDay}.` };
 }
+
+// ─── The Pour (ounces) ───────────────────────────────────────
+
+/** Returned by `get_wrapped_pour` (migration 076): the one count the other RPCs lack. */
+export interface WrappedPour {
+  personal_daily_doubles: number;
+  bar_daily_doubles: number;
+}
+
+export const OZ_BEER = 12;
+export const OZ_DAILY_DOUBLE_BEER = 16;
+export const OZ_SHOT = 1.5;
+export const OZ_PER_GALLON = 128;
+
+export interface Pour {
+  beer: number;
+  dailyDouble: number;
+  shots: number;
+  total: number;
+}
+
+/**
+ * Ounces for `rolls` rolls, `dailyDoubles` of which took the Daily Double.
+ * Every roll is one beer plus one shot; a Daily Double swaps the 12 oz beer
+ * for a 16 oz one (the shot stays 1.5 oz).
+ */
+export function pourOunces(rolls: number, dailyDoubles: number): Pour {
+  const dd = Math.min(Math.max(dailyDoubles, 0), rolls);
+  const beer = (rolls - dd) * OZ_BEER;
+  const dailyDouble = dd * OZ_DAILY_DOUBLE_BEER;
+  const shots = rolls * OZ_SHOT;
+  return { beer, dailyDouble, shots, total: beer + dailyDouble + shots };
+}
+
+export type VesselId =
+  | "mug"
+  | "pint"
+  | "gulp"
+  | "pitcher"
+  | "jug"
+  | "toilet"
+  | "bucket"
+  | "keg"
+  | "tub"
+  | "hottub";
+
+export interface Vessel {
+  id: VesselId;
+  one: string;
+  many: string;
+  oz: number;
+}
+
+/**
+ * The ladder, smallest to largest. One roll is 13.5 oz, so it starts at a
+ * mug; real rollers top out around a keg and the bar as a whole around a
+ * bathtub. Mug, bathtub and hot tub sizes are typical, not exact.
+ */
+export const VESSELS: readonly Vessel[] = [
+  { id: "mug", one: "coffee mug", many: "coffee mugs", oz: 12 },
+  { id: "pint", one: "pint glass", many: "pint glasses", oz: 16 },
+  { id: "gulp", one: "Big Gulp", many: "Big Gulps", oz: 32 },
+  { id: "pitcher", one: "pitcher", many: "pitchers", oz: 60 },
+  { id: "jug", one: "gallon of milk", many: "gallons of milk", oz: OZ_PER_GALLON },
+  { id: "toilet", one: "toilet flush", many: "toilet flushes", oz: 1.6 * OZ_PER_GALLON },
+  { id: "bucket", one: "5-gallon bucket", many: "5-gallon buckets", oz: 5 * OZ_PER_GALLON },
+  { id: "keg", one: "half-barrel keg", many: "half-barrel kegs", oz: 15.5 * OZ_PER_GALLON },
+  { id: "tub", one: "bathtub", many: "bathtubs", oz: 40 * OZ_PER_GALLON },
+  { id: "hottub", one: "hot tub", many: "hot tubs", oz: 400 * OZ_PER_GALLON },
+];
+
+/** The biggest vessel `oz` fills at least once (the mug if it doesn't fill even that). */
+export function pickVessel(oz: number): Vessel {
+  let best = VESSELS[0];
+  for (const v of VESSELS) if (oz / v.oz >= 1) best = v;
+  return best;
+}
+
+/** Three rungs below the pick, the pick, and one "just short" rung above it. */
+export function vesselLadder(oz: number): { best: Vessel; rows: Vessel[] } {
+  const best = pickVessel(oz);
+  const i = VESSELS.indexOf(best);
+  return { best, rows: VESSELS.slice(Math.max(0, i - 3), Math.min(VESSELS.length, i + 2)) };
+}
+
+/** "1.1", "17.3", "1,234", or "<0.1" for a count too small to read. */
+export function formatVesselCount(n: number): string {
+  if (n < 0.1) return "<0.1";
+  return n >= 100 ? Math.round(n).toLocaleString() : round1(n);
+}

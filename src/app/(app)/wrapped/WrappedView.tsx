@@ -8,7 +8,9 @@ import { createClient } from "@/lib/supabase/client";
 import {
   fetchWrapped,
   fetchWrappedGlobal,
+  fetchWrappedPour,
   wrappedGlobalQueryKey,
+  wrappedPourQueryKey,
   wrappedQueryKey,
 } from "@/lib/queries/stats";
 import { assignSuperlatives } from "@/lib/wrapped";
@@ -40,11 +42,17 @@ export default function WrappedView({
     staleTime: 5 * 60_000,
   });
 
+  const pour = useQuery({
+    queryKey: wrappedPourQueryKey(userId, year),
+    queryFn: () => fetchWrappedPour(supabase, userId, year),
+    staleTime: 5 * 60_000,
+  });
+
   const slides = useMemo(() => {
-    if (!personal.data || !global.data) return [];
+    if (!personal.data || !global.data || !pour.data) return [];
     const superlatives = assignSuperlatives(global.data.roller_metrics);
-    return buildSlides({ personal: personal.data, global: global.data, superlatives, userId, year });
-  }, [personal.data, global.data, userId, year]);
+    return buildSlides({ personal: personal.data, global: global.data, superlatives, pour: pour.data, userId, year });
+  }, [personal.data, global.data, pour.data, userId, year]);
 
   const [index, setIndex] = useState(0);
   const last = slides.length - 1;
@@ -68,8 +76,8 @@ export default function WrappedView({
     else next();
   }
 
-  const loading = personal.isLoading || global.isLoading;
-  const error = personal.error ?? global.error;
+  const loading = personal.isLoading || global.isLoading || pour.isLoading;
+  const error = personal.error ?? global.error ?? pour.error;
   const slide = slides[Math.min(index, Math.max(last, 0))];
 
   return (
@@ -125,6 +133,7 @@ export default function WrappedView({
               onClick={() => {
                 personal.refetch();
                 global.refetch();
+                pour.refetch();
               }}
               className="mt-4 px-4 py-2 rounded-lg border border-neon-pink text-neon-pink font-display text-[11px] tracking-[0.2em]"
             >

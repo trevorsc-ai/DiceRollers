@@ -523,6 +523,10 @@ export type Database = {
         Args: { p_end: string; p_min_rolls?: number; p_start: string }
         Returns: Json
       }
+      get_wrapped_pour: {
+        Args: { p_end: string; p_start: string; p_user: string }
+        Returns: Json
+      }
       set_app_flag: {
         Args: { flag_enabled: boolean; flag_key: string }
         Returns: undefined

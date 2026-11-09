@@ -7,7 +7,9 @@ import {
   fetchAppFlag,
   fetchWrapped,
   fetchWrappedGlobal,
+  fetchWrappedPour,
   wrappedGlobalQueryKey,
+  wrappedPourQueryKey,
   wrappedQueryKey,
 } from "@/lib/queries/stats";
 import { wrappedYear } from "@/lib/wrapped";
@@ -44,6 +46,10 @@ export default async function WrappedPage() {
     queryClient.prefetchQuery({
       queryKey: wrappedGlobalQueryKey(year),
       queryFn: () => fetchWrappedGlobal(supabase, year),
+    }),
+    queryClient.prefetchQuery({
+      queryKey: wrappedPourQueryKey(user.id, year),
+      queryFn: () => fetchWrappedPour(supabase, user.id, year),
     }),
   ]);
 
