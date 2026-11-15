@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Generate the circular neon QR code for diceroll.today.
 
-Usage: python3 scripts/brand/make_qr.py [out.svg] [url]
+Usage: python3 scripts/brand/make_qr.py [--mono] [out.svg] [url]
 Needs: pip install segno
+
+--mono writes the simple black-on-white version (dark modules on a light
+plate, so every scanner reads it) with a single die in the middle.
 
 Palette mirrors tailwind.config.ts (background, neon-pink, neon-gold, neon-green).
 Error correction is level H so the centre die and the decorative ring never
@@ -14,8 +17,10 @@ import sys
 
 import segno
 
-OUT = sys.argv[1] if len(sys.argv) > 1 else "docs/brand/diceroll-qr.svg"
-URL = sys.argv[2] if len(sys.argv) > 2 else "https://diceroll.today"
+_args = [a for a in sys.argv[1:] if a != "--mono"]
+MONO = "--mono" in sys.argv[1:]
+OUT = _args[0] if _args else ("docs/brand/diceroll-qr-mono.svg" if MONO else "docs/brand/diceroll-qr.svg")
+URL = _args[1] if len(_args) > 1 else "https://diceroll.today"
 
 BG, SURFACE = "#0D0D0D", "#1A1A1A"
 PINK, GOLD, GREEN, WHITE = "#FF2D55", "#FFD600", "#00FF88", "#F5F5F5"
@@ -59,6 +64,32 @@ def die(cx, cy, s, rot, face, fill, pip, stroke=None, sw=0, glow=False):
     o.append("</g>")
     return "".join(o)
 
+
+if MONO:
+    K = "#000000"
+    o = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SIZE} {SIZE}" width="{SIZE}" height="{SIZE}">',
+         "<title>diceroll.today</title>",
+         f'<circle cx="{C}" cy="{C}" r="{R_OUTER}" fill="#FFFFFF"/>',
+         f'<circle cx="{C}" cy="{C}" r="{R_OUTER-14}" fill="none" stroke="{K}" stroke-width="12"/>']
+    dots = []
+    for row in range(n):
+        for col in range(n):
+            if not m[row][col] or in_finder(col, row):
+                continue
+            x, y = px(col, row)
+            if math.hypot(x - C, y - C) < CLEAR:
+                continue
+            dots.append(f'<circle cx="{x:.2f}" cy="{y:.2f}" r="{mod*0.46:.2f}"/>')
+    o.append(f'<g fill="{K}">{"".join(dots)}</g>')
+    for c0, r0 in ((0, 0), (n - 7, 0), (0, n - 7)):
+        x0, y0 = ox + c0 * mod, oy + r0 * mod
+        o.append(f'<rect x="{x0+mod/2:.2f}" y="{y0+mod/2:.2f}" width="{6*mod:.2f}" height="{6*mod:.2f}" rx="{2.2*mod:.2f}" fill="none" stroke="{K}" stroke-width="{mod:.2f}"/>')
+        o.append(f'<rect x="{x0+2*mod:.2f}" y="{y0+2*mod:.2f}" width="{3*mod:.2f}" height="{3*mod:.2f}" rx="{1.15*mod:.2f}" fill="{K}"/>')
+    o.append(die(C, C, CLEAR * 1.12, 12, 6, K, "#FFFFFF"))
+    o.append("</svg>")
+    open(OUT, "w").write("\n".join(o))
+    print(f"wrote {OUT}  ({n}x{n} modules, mono, {URL})")
+    sys.exit(0)
 
 svg = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SIZE} {SIZE}" width="{SIZE}" height="{SIZE}">']
 svg.append(f"""<title>diceroll.today</title>
