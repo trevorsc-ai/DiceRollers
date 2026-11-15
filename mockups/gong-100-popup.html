@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>DiceRollers — 100th Gong Pop-up Mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/canvas-confetti/1.9.3/confetti.browser.min.js"></script>
+<style>
+  :root{
+    --bg:#0D0D0D; --surface:#1A1A1A; --surface2:#252525;
+    --pink:#FF2D55; --gold:#FFD600; --green:#00FF88; --purple:#AA66FF;
+    --text:#F5F5F5; --muted:#999;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    min-height:100vh;background:radial-gradient(1200px 600px at 50% -10%,#2a1a00 0%,#0b0b0b 55%,#050505 100%);
+    font-family:"Space Grotesk",system-ui,sans-serif;color:var(--text);
+    display:flex;flex-direction:column;align-items:center;gap:20px;padding:28px 16px 40px;
+  }
+  header.page{max-width:760px;text-align:center}
+  header.page h1{font-family:"Space Mono",monospace;font-size:14px;letter-spacing:.3em;color:var(--gold);text-transform:uppercase}
+  header.page p{color:var(--muted);font-size:14px;margin-top:6px;line-height:1.5}
+
+  .stage{display:flex;gap:28px;align-items:flex-start;flex-wrap:wrap;justify-content:center}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .controls button{
+    font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.15em;text-transform:uppercase;
+    background:var(--surface);color:var(--text);border:1px solid #333;border-radius:999px;padding:10px 18px;cursor:pointer
+  }
+  .controls button:hover{border-color:var(--gold);color:var(--gold)}
+
+  /* ---------- Phone frame ---------- */
+  .phone{
+    position:relative;width:390px;height:844px;border-radius:54px;padding:12px;
+    background:linear-gradient(145deg,#2b2b2b,#0e0e0e);box-shadow:0 30px 80px rgba(0,0,0,.7),inset 0 0 0 2px #3a3a3a;
+    flex-shrink:0;
+  }
+  .screen{position:relative;width:100%;height:100%;border-radius:44px;overflow:hidden;background:var(--bg)}
+  .notch{position:absolute;top:10px;left:50%;transform:translateX(-50%);width:120px;height:32px;background:#000;border-radius:20px;z-index:100}
+
+  /* ---------- Fake app behind ---------- */
+  .app{position:absolute;inset:0;padding:60px 16px 16px;filter:blur(0);transition:filter .6s}
+  .app.dim{filter:blur(6px) brightness(.35)}
+  .app .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .app .logo{font-family:"Space Mono",monospace;font-weight:700;color:var(--pink);letter-spacing:.2em;text-shadow:0 0 14px rgba(255,45,85,.6)}
+  .app .card{background:var(--surface);border-radius:20px;padding:16px;margin-bottom:12px;border:1px solid #222}
+  .app .row{display:flex;gap:10px;align-items:center}
+  .app .av{width:36px;height:36px;border-radius:50%;background:var(--surface2)}
+  .app .ln{height:10px;border-radius:6px;background:var(--surface2)}
+  .app .dice{display:flex;gap:8px;margin-top:12px}
+  .app .die{width:46px;height:46px;border-radius:10px;display:grid;place-items:center;font-family:"Space Mono";font-weight:700;font-size:20px}
+  .app .die.r{background:var(--pink);color:#fff}.app .die.w{background:#f5f5f5;color:#111}
+  .app .rollbtn{position:absolute;left:16px;right:16px;bottom:30px;height:64px;border-radius:20px;background:var(--pink);
+    display:grid;place-items:center;font-family:"Space Mono";font-weight:700;letter-spacing:.25em;box-shadow:0 0 24px rgba(255,45,85,.45)}
+
+  /* ---------- Overlay ---------- */
+  .overlay{position:absolute;inset:0;z-index:50;display:none;overflow:hidden}
+  .overlay.on{display:block}
+  .flash{position:absolute;inset:0;background:radial-gradient(circle at 50% 30%,#fff 0%,#FFD600 30%,transparent 70%);opacity:0;pointer-events:none;z-index:60}
+  .flash.go{animation:flash .9s ease-out forwards}
+  @keyframes flash{0%{opacity:0}8%{opacity:1}100%{opacity:0}}
+
+  .rays{
+    position:absolute;left:50%;top:205px;width:1100px;height:1100px;margin:-550px 0 0 -550px;opacity:0;
+    background:repeating-conic-gradient(from 0deg,rgba(255,214,0,.16) 0deg 7deg,transparent 7deg 18deg);
+    -webkit-mask:radial-gradient(circle,#000 0%,#000 25%,transparent 62%);mask:radial-gradient(circle,#000 0%,#000 25%,transparent 62%);
+  }
+  .on .rays{animation:raysIn .8s .55s ease-out forwards,spin 22s linear infinite}
+  @keyframes raysIn{to{opacity:1}}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .shock{position:absolute;left:50%;top:175px;width:120px;height:120px;margin:-60px 0 0 -60px;border-radius:50%;
+    border:3px solid var(--gold);opacity:0;pointer-events:none;box-shadow:0 0 30px var(--gold),inset 0 0 20px var(--gold)}
+  .on .shock{animation:shock 1.4s ease-out forwards}
+  .on .shock.s2{animation-delay:.68s;border-color:var(--pink);box-shadow:0 0 30px var(--pink)}
+  .on .shock.s3{animation-delay:.86s}
+  .on .shock{animation-delay:.5s}
+  @keyframes shock{0%{opacity:1;transform:scale(.6)}100%{opacity:0;transform:scale(7)}}
+
+  /* gong */
+  .gongWrap{position:absolute;left:50%;top:70px;transform:translateX(-50%);width:220px;height:220px;z-index:55}
+  .gongWrap svg{overflow:visible}
+  .gong{transform-origin:110px 30px}
+  .on .gong{animation:gongDrop .5s cubic-bezier(.2,1.4,.4,1) both, gongSwing 2.2s .5s ease-out both}
+  @keyframes gongDrop{0%{transform:translateY(-260px)}100%{transform:translateY(0)}}
+  @keyframes gongSwing{
+    0%{transform:rotate(0)} 8%{transform:rotate(-9deg) scale(1.04)} 20%{transform:rotate(6deg)}
+    35%{transform:rotate(-4deg)} 50%{transform:rotate(2.5deg)} 70%{transform:rotate(-1deg)} 100%{transform:rotate(0)}
+  }
+  .gongFace{filter:drop-shadow(0 0 0 rgba(255,214,0,0))}
+  .on .gongFace{animation:gongGlow 2.5s .5s ease-out forwards}
+  @keyframes gongGlow{0%{filter:drop-shadow(0 0 40px #FFD600) brightness(1.8)}100%{filter:drop-shadow(0 0 22px rgba(255,214,0,.55)) brightness(1)}}
+  .mallet{transform-origin:220px 220px;opacity:0}
+  .on .mallet{animation:mallet .75s .1s cubic-bezier(.5,0,.6,1) both}
+  @keyframes mallet{0%{opacity:0;transform:translate(70px,40px) rotate(40deg)}35%{opacity:1;transform:translate(60px,30px) rotate(55deg)}
+    55%{opacity:1;transform:translate(0,0) rotate(-6deg)}75%{opacity:1;transform:translate(10px,6px) rotate(8deg)}100%{opacity:0;transform:translate(50px,40px) rotate(30deg)}}
+  .gong100{font-family:"Space Mono",monospace;font-weight:700}
+
+  /* card */
+  .card{
+    position:absolute;left:16px;right:16px;top:276px;bottom:22px;border-radius:28px;z-index:58;
+    background:linear-gradient(180deg,rgba(30,24,6,.94),rgba(16,16,16,.97) 40%);
+    border:1.5px solid rgba(255,214,0,.55);
+    box-shadow:0 0 0 1px rgba(255,214,0,.15),0 0 50px rgba(255,214,0,.25),inset 0 1px 0 rgba(255,255,255,.08);
+    padding:22px 20px 18px;display:flex;flex-direction:column;align-items:center;text-align:center;opacity:0;transform:translateY(40px) scale(.92)
+  }
+  .on .card{animation:cardIn .6s 1.1s cubic-bezier(.2,1.3,.4,1) forwards}
+  @keyframes cardIn{to{opacity:1;transform:none}}
+  .card::before{ /* animated gold border sweep */
+    content:"";position:absolute;inset:-1.5px;border-radius:28px;padding:1.5px;pointer-events:none;
+    background:conic-gradient(from var(--a,0deg),transparent 0 70%,#FFD600 80%,#fff 85%,#FF2D55 90%,transparent 100%);
+    -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;
+    animation:sweep 3s linear infinite
+  }
+  @property --a{syntax:"<angle>";initial-value:0deg;inherits:false}
+  @keyframes sweep{to{--a:360deg}}
+
+  .eyebrow{font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.35em;color:var(--pink);text-shadow:0 0 10px rgba(255,45,85,.7)}
+  .congrats{font-family:"Space Mono",monospace;font-weight:700;font-size:26px;letter-spacing:.04em;margin-top:6px;line-height:1.05;
+    background:linear-gradient(90deg,#FFD600,#fff6b0 40%,#FFD600 60%,#ffb800);-webkit-background-clip:text;background-clip:text;color:transparent;
+    background-size:200% 100%;animation:shine 2.5s linear infinite;filter:drop-shadow(0 0 12px rgba(255,214,0,.5))}
+  @keyframes shine{to{background-position:-200% 0}}
+  .youare{margin-top:8px;font-size:15px;color:var(--text);line-height:1.4}
+  .youare b{color:var(--gold);font-family:"Space Mono",monospace}
+  .counter{font-family:"Space Mono",monospace;font-weight:700;font-size:16px;color:var(--gold)}
+
+  /* ticket */
+  .ticket{
+    position:relative;margin-top:14px;width:100%;border-radius:18px;overflow:hidden;flex-shrink:0;
+    background:linear-gradient(135deg,#FFD600,#ffb300);color:#111;padding:16px 16px 14px;
+    box-shadow:0 0 24px rgba(255,214,0,.35)
+  }
+  .ticket::before,.ticket::after{content:"";position:absolute;top:58%;width:22px;height:22px;border-radius:50%;background:#141414}
+  .ticket::before{left:-11px}.ticket::after{right:-11px}
+  .holo{position:absolute;inset:0;pointer-events:none;mix-blend-mode:overlay;opacity:.75;
+    background:linear-gradient(115deg,transparent 20%,rgba(255,255,255,.9) 30%,rgba(255,45,85,.6) 36%,rgba(0,255,136,.6) 42%,rgba(170,102,255,.6) 48%,transparent 58%);
+    background-size:250% 100%;animation:holo 2.8s linear infinite}
+  @keyframes holo{0%{background-position:150% 0}100%{background-position:-100% 0}}
+  .t-top{font-family:"Space Mono",monospace;font-size:10px;letter-spacing:.3em;font-weight:700;opacity:.75}
+  .t-big{font-family:"Space Mono",monospace;font-weight:700;font-size:21px;letter-spacing:.04em;margin-top:4px}
+  .t-copy{font-size:13.5px;line-height:1.4;margin-top:6px;font-weight:500}
+  .perf{border-top:2px dashed rgba(0,0,0,.35);margin:12px -16px 10px}
+  .t-meta{display:flex;justify-content:space-between;align-items:flex-end;font-family:"Space Mono",monospace;font-size:10.5px;text-align:left;gap:8px}
+  .t-meta .lbl{opacity:.6;letter-spacing:.15em;font-size:9px}
+  .t-meta .val{font-weight:700;font-size:12px}
+  .live{display:inline-flex;align-items:center;gap:5px}
+  .live i{width:7px;height:7px;border-radius:50%;background:#e0002a;box-shadow:0 0 0 0 rgba(224,0,42,.6);animation:ping 1.2s infinite}
+  @keyframes ping{0%{box-shadow:0 0 0 0 rgba(224,0,42,.7)}100%{box-shadow:0 0 0 8px rgba(224,0,42,0)}}
+
+  .hint{margin-top:10px;flex-shrink:0;font-size:11px;color:var(--muted);line-height:1.4}
+  .hint span{color:var(--green)}
+
+  .actions{margin-top:auto;width:100%;display:flex;flex-direction:column;gap:8px}
+  .hold{
+    position:relative;overflow:hidden;width:100%;height:52px;border-radius:16px;border:1.5px solid var(--green);background:transparent;
+    color:var(--green);font-family:"Space Mono",monospace;font-weight:700;letter-spacing:.14em;font-size:12px;cursor:pointer;
+    text-shadow:0 0 8px rgba(0,255,136,.5);user-select:none;-webkit-user-select:none;touch-action:none
+  }
+  .hold .fill{position:absolute;inset:0;width:0;background:rgba(0,255,136,.25)}
+  .hold span{position:relative}
+  .hold.done{background:var(--green);color:#062;text-shadow:none}
+  .close{background:none;border:none;color:var(--muted);font-family:"Space Mono",monospace;font-size:11px;letter-spacing:.2em;padding:6px;cursor:pointer}
+
+  .stamp{position:absolute;right:10px;top:8px;transform:rotate(14deg) scale(2.2);opacity:0;border:3px solid #0a7d3b;color:#0a7d3b;
+    font-family:"Space Mono",monospace;font-weight:700;font-size:13px;padding:2px 8px;border-radius:6px;letter-spacing:.15em;background:rgba(255,255,255,.25)}
+  .stamp.show{animation:stamp .35s ease-out forwards}
+  @keyframes stamp{to{opacity:1;transform:rotate(14deg) scale(1)}}
+
+  /* notes column */
+  .notes{max-width:340px;background:rgba(26,26,26,.7);border:1px solid #262626;border-radius:20px;padding:20px;font-size:14px;line-height:1.55;color:#ccc}
+  .notes h2{font-family:"Space Mono",monospace;font-size:12px;letter-spacing:.25em;color:var(--gold);margin:0 0 8px}
+  .notes h2:not(:first-child){margin-top:18px}
+  .notes p{margin-bottom:8px}
+  .notes em{color:var(--text);font-style:normal;font-weight:700}
+  @media (max-width:420px){.phone{transform:scale(.88);transform-origin:top center;margin-bottom:-100px}}
+</style>
+</head>
+<body>
+  <header class="page">
+    <h1>Mockup · 100th Gong Pop-up</h1>
+    <p>What the 100th person to unlock “Hit the Gong” sees right after their first roll saves. Hit replay to watch the entrance again.</p>
+  </header>
+
+  <div class="controls">
+    <button id="replay">↻ Replay</button>
+    <button id="toggle">Hide pop-up</button>
+  </div>
+
+  <div class="stage">
+    <div class="phone">
+      <div class="screen" id="screen">
+        <div class="notch"></div>
+
+        <!-- Fake app underneath -->
+        <div class="app" id="app">
+          <div class="top"><div class="logo">DICEROLLERS</div><div class="av"></div></div>
+          <div class="card">
+            <div class="row"><div class="av"></div><div style="flex:1"><div class="ln" style="width:55%"></div><div class="ln" style="width:30%;margin-top:6px"></div></div></div>
+            <div class="dice"><div class="die r">5</div><div class="die w">3</div></div>
+          </div>
+          <div class="card">
+            <div class="row"><div class="av"></div><div style="flex:1"><div class="ln" style="width:45%"></div><div class="ln" style="width:25%;margin-top:6px"></div></div></div>
+            <div class="dice"><div class="die r">2</div><div class="die w">2</div></div>
+          </div>
+          <div class="card">
+            <div class="row"><div class="av"></div><div style="flex:1"><div class="ln" style="width:60%"></div><div class="ln" style="width:35%;margin-top:6px"></div></div></div>
+          </div>
+          <div class="rollbtn">ROLL</div>
+        </div>
+
+        <!-- The pop-up -->
+        <div class="overlay" id="overlay">
+          <div class="rays"></div>
+          <div class="shock"></div><div class="shock s2"></div><div class="shock s3"></div>
+
+          <div class="gongWrap">
+            <svg width="220" height="220" viewBox="0 0 220 220">
+              <defs>
+                <radialGradient id="gFace" cx="42%" cy="38%" r="70%">
+                  <stop offset="0" stop-color="#FFF6B0"/>
+                  <stop offset=".35" stop-color="#FFD600"/>
+                  <stop offset=".75" stop-color="#C98A00"/>
+                  <stop offset="1" stop-color="#6b4400"/>
+                </radialGradient>
+                <linearGradient id="frame" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0" stop-color="#FF2D55"/><stop offset="1" stop-color="#8a0f2a"/>
+                </linearGradient>
+              </defs>
+              <!-- frame -->
+              <rect x="18" y="14" width="184" height="10" rx="5" fill="url(#frame)" />
+              <rect x="22" y="14" width="8" height="200" rx="4" fill="url(#frame)" />
+              <rect x="190" y="14" width="8" height="200" rx="4" fill="url(#frame)" />
+              <g class="gong">
+                <line x1="78" y1="24" x2="90" y2="56" stroke="#bbb" stroke-width="2"/>
+                <line x1="142" y1="24" x2="130" y2="56" stroke="#bbb" stroke-width="2"/>
+                <g class="gongFace">
+                  <circle cx="110" cy="122" r="74" fill="url(#gFace)" stroke="#8a5d00" stroke-width="3"/>
+                  <circle cx="110" cy="122" r="60" fill="none" stroke="rgba(120,80,0,.45)" stroke-width="2"/>
+                  <circle cx="110" cy="122" r="46" fill="none" stroke="rgba(120,80,0,.35)" stroke-width="1.5"/>
+                  <circle cx="110" cy="122" r="32" fill="rgba(255,250,210,.35)" stroke="rgba(120,80,0,.5)" stroke-width="2"/>
+                  <ellipse cx="86" cy="96" rx="22" ry="10" fill="rgba(255,255,255,.45)" transform="rotate(-30 86 96)"/>
+                  <text x="110" y="134" text-anchor="middle" class="gong100" font-size="34" fill="#3a2500" id="gongNum">100</text>
+                </g>
+              </g>
+              <!-- mallet -->
+              <g class="mallet">
+                <rect x="150" y="150" width="70" height="7" rx="3.5" fill="#d9a066" transform="rotate(35 150 150)"/>
+                <ellipse cx="152" cy="150" rx="14" ry="12" fill="#FF2D55" stroke="#8a0f2a" stroke-width="2"/>
+              </g>
+            </svg>
+          </div>
+
+          <div class="card" id="card">
+            <div class="eyebrow">★ MILESTONE UNLOCKED ★</div>
+            <div class="congrats">CONGRATULATIONS!</div>
+            <p class="youare">You are the <b class="counter" id="counter">#1</b> person<br/>to ever hit the gong.</p>
+
+            <div class="ticket" id="ticket">
+              <div class="holo"></div>
+              <div class="stamp" id="stamp">REDEEMED</div>
+              <div class="t-top">🎟 GOLDEN GONG PASS</div>
+              <div class="t-big">THIS ROLL'S ON US</div>
+              <div class="t-copy">Show this screen to a bartender — the admins are covering your dice roll.</div>
+              <div class="perf"></div>
+              <div class="t-meta">
+                <div><div class="lbl">ROLLER</div><div class="val">@jordan_k</div></div>
+                <div><div class="lbl">GONG #</div><div class="val">100 / 100</div></div>
+                <div style="text-align:right"><div class="lbl live"><i></i>LIVE</div><div class="val" id="clock">--:--:--</div></div>
+              </div>
+            </div>
+
+            <p class="hint">Bartenders: the <span>live clock</span> and shimmer mean it's the real deal, not a screenshot.</p>
+
+            <div class="actions">
+              <button class="hold" id="hold"><div class="fill" id="fill"></div><span id="holdTxt">BARTENDER: HOLD TO REDEEM</span></button>
+              <button class="close" id="close">I'LL FIND A BARTENDER →</button>
+            </div>
+          </div>
+
+          <div class="flash" id="flash"></div>
+        </div>
+      </div>
+    </div>
+
+    <aside class="notes">
+      <h2>WHAT HAPPENS</h2>
+      <p>The roll saves, and the server notices this person is the 100th user ever to earn the Hit the Gong achievement. Instead of the normal achievement modal, the app plays this sequence: the screen dims, a gold gong drops in, a mallet strikes it, the screen flashes, shockwaves ripple out, and confetti fires while the counter races from #1 up to #100.</p>
+      <h2>THE PASS</h2>
+      <p>The gold ticket is what the bartender looks at. It shows the roller's name, the gong number, and a ticking live clock under a moving holographic shimmer, so a bartender can tell at a glance that it's the real app and not a screenshot someone passed around.</p>
+      <h2>REDEEMING</h2>
+      <p>The green button is optional: the bartender presses and holds it for about a second and a half, the ticket gets stamped <em>REDEEMED</em>, and it can't be used twice. Try holding it in the mockup. If the pass is closed before redemption, it stays reachable from the user's profile until it's redeemed.</p>
+    </aside>
+  </div>
+
+<script>
+  const overlay = document.getElementById("overlay");
+  const app = document.getElementById("app");
+  const counter = document.getElementById("counter");
+  const flash = document.getElementById("flash");
+  let timers = [];
+
+  function burst(){
+    if (typeof confetti !== "function") return;
+    const screen = document.getElementById("screen").getBoundingClientRect();
+    const ox = (screen.left + screen.width/2)/window.innerWidth;
+    const oy = (screen.top + 190)/window.innerHeight;
+    const colors = ["#FFD600","#FF2D55","#00FF88","#AA66FF","#F5F5F5"];
+    confetti({particleCount:160,spread:110,startVelocity:48,gravity:.75,scalar:1.2,origin:{x:ox,y:oy},colors});
+    timers.push(setTimeout(()=>{
+      confetti({particleCount:70,angle:60,spread:60,origin:{x:(screen.left)/window.innerWidth,y:(screen.top+screen.height*.7)/window.innerHeight},colors});
+      confetti({particleCount:70,angle:120,spread:60,origin:{x:(screen.right)/window.innerWidth,y:(screen.top+screen.height*.7)/window.innerHeight},colors});
+    },700));
+  }
+
+  function countUp(){
+    const start = performance.now(), dur = 1400;
+    function step(t){
+      const p = Math.min(1,(t-start)/dur), e = 1-Math.pow(1-p,3);
+      counter.textContent = "#" + Math.max(1,Math.round(e*100));
+      if (p<1) requestAnimationFrame(step); else counter.textContent = "100th";
+    }
+    requestAnimationFrame(step);
+  }
+
+  function play(){
+    timers.forEach(clearTimeout); timers=[];
+    overlay.classList.remove("on"); void overlay.offsetWidth;
+    flash.classList.remove("go");
+    resetHold();
+    counter.textContent = "#1";
+    app.classList.add("dim");
+    overlay.classList.add("on");
+    timers.push(setTimeout(()=>{ void flash.offsetWidth; flash.classList.add("go"); burst(); }, 480));
+    timers.push(setTimeout(countUp, 1250));
+    document.getElementById("toggle").textContent = "Hide pop-up";
+  }
+
+  function hide(){
+    overlay.classList.remove("on"); app.classList.remove("dim");
+    document.getElementById("toggle").textContent = "Show pop-up";
+  }
+
+  document.getElementById("replay").onclick = play;
+  document.getElementById("toggle").onclick = () => overlay.classList.contains("on") ? hide() : play();
+  document.getElementById("close").onclick = hide;
+
+  // live clock
+  const clock = document.getElementById("clock");
+  setInterval(()=>{ clock.textContent = new Date().toLocaleTimeString([], {hour:"numeric",minute:"2-digit",second:"2-digit"}); }, 250);
+
+  // press & hold
+  const hold = document.getElementById("hold"), fill = document.getElementById("fill"), holdTxt = document.getElementById("holdTxt"), stamp = document.getElementById("stamp");
+  let holdStart = null, raf = null, redeemed = false;
+  const HOLD_MS = 1500;
+  function tick(t){
+    const p = Math.min(1,(t-holdStart)/HOLD_MS);
+    fill.style.width = (p*100)+"%";
+    if (p>=1){ redeem(); return; }
+    raf = requestAnimationFrame(tick);
+  }
+  function startHold(e){ if (redeemed) return; e.preventDefault(); holdStart = performance.now(); raf = requestAnimationFrame(tick); }
+  function endHold(){ if (redeemed) return; cancelAnimationFrame(raf); fill.style.width = "0"; }
+  function redeem(){
+    redeemed = true; hold.classList.add("done"); holdTxt.textContent = "✓ REDEEMED · ENJOY THE ROLL";
+    stamp.classList.add("show");
+    if (typeof confetti === "function") confetti({particleCount:60,spread:70,origin:{y:.8},colors:["#00FF88","#FFD600"]});
+  }
+  function resetHold(){ redeemed=false; hold.classList.remove("done"); fill.style.width="0"; holdTxt.textContent="BARTENDER: HOLD TO REDEEM"; stamp.classList.remove("show"); }
+  hold.addEventListener("pointerdown", startHold);
+  ["pointerup","pointerleave","pointercancel"].forEach(ev => hold.addEventListener(ev, endHold));
+
+  window.addEventListener("load", () => setTimeout(play, 400));
+</script>
+</body>
+</html>
