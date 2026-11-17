@@ -124,14 +124,22 @@ function TrackerRow({
   );
 }
 
-function AwayPill({ rollsAway }: { rollsAway: number }) {
+const ROLL_UNIT = { singular: "ROLL", plural: "ROLLS" };
+
+function AwayPill({
+  rollsAway,
+  unit = ROLL_UNIT,
+}: {
+  rollsAway: number;
+  unit?: { singular: string; plural: string };
+}) {
   const color = rollsAway === 1 ? GOLD : rollsAway === 2 ? PINK : "#999999";
   return (
     <span
       className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold tracking-[0.14em]"
       style={{ color, background: `${color}1A`, border: `1px solid ${color}55` }}
     >
-      {rollsAway === 1 ? "1 ROLL AWAY" : `${rollsAway} ROLLS AWAY`}
+      {rollsAway === 1 ? `1 ${unit.singular} AWAY` : `${rollsAway} ${unit.plural} AWAY`}
     </span>
   );
 }
@@ -145,7 +153,9 @@ function NearSection({
   myUserId,
   onUserClick,
   renderVisual,
+  unit,
 }: {
+  unit?: { singular: string; plural: string };
   section: TrackerNearSection;
   myUserId: string | null;
   onUserClick: (username: string) => void;
@@ -167,7 +177,7 @@ function NearSection({
             username={row.username}
             isMe={row.user_id === myUserId}
             onUserClick={onUserClick}
-            trailing={<AwayPill rollsAway={row.rolls_away} />}
+            trailing={<AwayPill rollsAway={row.rolls_away} unit={unit} />}
             below={renderVisual(row)}
           />
         ))}
@@ -210,6 +220,17 @@ export default function AchievementTrackerView({
 
   return (
     <div className="flex flex-col gap-3">
+      <ChartCard variant="stats" title="🎟️ THE PUNCH CARD">
+        <NearSection
+          section={data.punchCard}
+          myUserId={myUserId}
+          onUserClick={onUserClick}
+          renderVisual={(row) => (
+            <PunchCardGrid detail={{ red: row.red, white: row.white }} size="sm" />
+          )}
+        />
+      </ChartCard>
+
       <ChartCard variant="stats" title="🌎 AROUND THE WORLD · TOP 5">
         {data.aroundTheWorld.length === 0 ? (
           <EmptyNote />
@@ -260,6 +281,7 @@ export default function AchievementTrackerView({
       <ChartCard variant="stats" title="📅 MALORT ADVENT CALENDAR">
         <NearSection
           section={data.malortAdventCalendar}
+          unit={{ singular: "MALORT", plural: "MALORTS" }}
           myUserId={myUserId}
           onUserClick={onUserClick}
           renderVisual={(row) => (
@@ -270,18 +292,7 @@ export default function AchievementTrackerView({
         />
       </ChartCard>
 
-      <ChartCard variant="stats" title="🎟️ THE PUNCH CARD">
-        <NearSection
-          section={data.punchCard}
-          myUserId={myUserId}
-          onUserClick={onUserClick}
-          renderVisual={(row) => (
-            <PunchCardGrid detail={{ red: row.red, white: row.white }} size="sm" />
-          )}
-        />
-      </ChartCard>
-
-      <ChartCard variant="stats" title="👯 TWINSIES BOARD">
+      <ChartCard variant="stats" title="👯 TWINSIES BOARD · TOP 5">
         {data.twinsies.length === 0 ? (
           <EmptyNote />
         ) : (
