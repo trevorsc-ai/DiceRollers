@@ -497,6 +497,7 @@ export type Database = {
           unlock_count: number
         }[]
       }
+      get_achievement_tracker: { Args: never; Returns: Json }
       get_admin_dashboard_stats: { Args: never; Returns: Json }
       get_full_leaderboard: { Args: never; Returns: Json }
       get_global_stats: { Args: never; Returns: Json }
