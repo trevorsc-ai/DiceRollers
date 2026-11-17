@@ -16,6 +16,7 @@ import { useDailyDoubleLogos } from "@/hooks/useDailyDoubleLogos";
 import { useScrollSentinel } from "@/hooks/useScrollSentinel";
 import { RollCard } from "@/components/roll/RollCard";
 import { WrappedBanner } from "@/components/WrappedBanner";
+import AchievementTrackerView from "./AchievementTrackerView";
 import { fetchFeedPage, type FeedRoll, type RollsPage } from "@/lib/queries/rolls";
 
 export default function FeedPage() {
@@ -24,6 +25,7 @@ export default function FeedPage() {
   const dailyDoubleLogo = useDailyDoubleLogos();
 
   const [selectedUser, setSelectedUser] = useState<string | null>(null);
+  const [tab, setTab] = useState<"feed" | "tracker">("feed");
 
   const { data: myUserId = null, isLoading: authLoading } = useQuery({
     queryKey: ["currentUser"],
@@ -115,41 +117,68 @@ export default function FeedPage() {
         <div className="w-8" />
       </div>
 
+      <div
+        role="tablist"
+        aria-label="Feed sections"
+        className="mx-[18px] mb-3 flex rounded-full bg-surface border border-surface-2 p-0.5"
+      >
+        {(["feed", "tracker"] as const).map((t) => (
+          <button
+            key={t}
+            type="button"
+            role="tab"
+            aria-selected={tab === t}
+            onClick={() => setTab(t)}
+            className={`flex-1 rounded-full py-2 font-display text-[11px] tracking-[0.18em] transition-colors ${
+              tab === t ? "bg-neon-pink text-background" : "text-text-secondary"
+            }`}
+          >
+            {t === "feed" ? "FEED" : "TRACKER"}
+          </button>
+        ))}
+      </div>
+
       <div className="px-[18px] pb-[84px]">
-        <div className="mb-3 empty:hidden">
-          <WrappedBanner />
-        </div>
-        {loading ? (
-          <div className="text-center text-text-secondary py-12">Loading...</div>
-        ) : rolls.length === 0 ? (
-          <div className="text-center py-12 text-text-secondary">
-            <p className="text-5xl mb-4">🎲</p>
-            <p>No public rolls yet.</p>
-            <p className="text-sm mt-2">Make your profile public in Settings to appear here!</p>
-          </div>
+        {tab === "tracker" ? (
+          <AchievementTrackerView myUserId={myUserId} onUserClick={setSelectedUser} />
         ) : (
-          <div className="flex flex-col gap-3">
-            {rolls.map((roll) => (
-              <FeedCard
-                key={roll.id}
-                roll={roll}
-                onToggleLike={(rollId, likedByMe) => toggleLike.mutate({ rollId, likedByMe })}
-                onUserClick={setSelectedUser}
-                dailyDoubleLogo={dailyDoubleLogo}
-              />
-            ))}
-            <div ref={sentinelRef} className="h-1" aria-hidden />
-            {loadingMore && (
-              <div className="text-center text-text-secondary py-4 font-display text-[11px] tracking-[0.18em]">
-                LOADING MORE…
-              </div>
-            )}
-            {!hasNextPage && !loadingMore && rolls.length > 0 && (
-              <div className="text-center text-text-muted py-6 font-display text-[10px] tracking-[0.22em]">
-                · END OF THE LINE ·
-              </div>
-            )}
+          <>
+          <div className="mb-3 empty:hidden">
+            <WrappedBanner />
           </div>
+          {loading ? (
+            <div className="text-center text-text-secondary py-12">Loading...</div>
+          ) : rolls.length === 0 ? (
+            <div className="text-center py-12 text-text-secondary">
+              <p className="text-5xl mb-4">🎲</p>
+              <p>No public rolls yet.</p>
+              <p className="text-sm mt-2">Make your profile public in Settings to appear here!</p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {rolls.map((roll) => (
+                <FeedCard
+                  key={roll.id}
+                  roll={roll}
+                  onToggleLike={(rollId, likedByMe) => toggleLike.mutate({ rollId, likedByMe })}
+                  onUserClick={setSelectedUser}
+                  dailyDoubleLogo={dailyDoubleLogo}
+                />
+              ))}
+              <div ref={sentinelRef} className="h-1" aria-hidden />
+              {loadingMore && (
+                <div className="text-center text-text-secondary py-4 font-display text-[11px] tracking-[0.18em]">
+                  LOADING MORE…
+                </div>
+              )}
+              {!hasNextPage && !loadingMore && rolls.length > 0 && (
+                <div className="text-center text-text-muted py-6 font-display text-[10px] tracking-[0.22em]">
+                  · END OF THE LINE ·
+                </div>
+              )}
+            </div>
+          )}
+          </>
         )}
       </div>
 

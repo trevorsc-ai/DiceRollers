@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import { ChevronDown } from "lucide-react";
 import { formatPartners, type TwinsiesEvent } from "@/lib/twinsies";
 import { formatShortDate } from "@/lib/format";
+import { AroundTheWorldGrid, DoublesGrid, PunchCardGrid } from "@/components/achievements/ProgressGrids";
 import {
   achievementsPageQueryKey,
   fetchAchievementsPage,
@@ -360,58 +361,6 @@ function TwinsiesLog({ events, count }: { events: TwinsiesEvent[]; count: number
   );
 }
 
-function DoublesGrid({ numbers }: { numbers: number[] }) {
-  const hit = new Set(numbers);
-  return (
-    <div className="mt-2 flex items-center gap-1">
-      {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
-        <div
-          key={n}
-          className="w-[22px] h-[22px] rounded text-[10px] flex items-center justify-center font-display"
-          style={
-            hit.has(n)
-              ? { background: "#FF2D55", color: "#0D0D0D", boxShadow: "0 0 6px rgba(255,45,85,0.5)" }
-              : { background: "#0D0D0D", border: "1px solid #252525", color: "#555" }
-          }
-        >
-          {n}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function AroundTheWorldGrid({ combos }: { combos: string[] }) {
-  const hit = new Set(combos);
-  return (
-    <div className="mt-2 overflow-x-auto">
-      <div className="inline-block">
-        <div className="flex gap-0.5 mb-0.5 pl-5">
-          {Array.from({ length: 8 }, (_, i) => i + 1).map((w) => (
-            <div key={w} className="w-4 h-4 text-[8px] text-text-secondary flex items-center justify-center">{w}</div>
-          ))}
-        </div>
-        {Array.from({ length: 8 }, (_, ri) => ri + 1).map((r) => (
-          <div key={r} className="flex gap-0.5 mb-0.5">
-            <div className="w-4 h-4 text-[8px] text-neon-pink flex items-center justify-center shrink-0">{r}</div>
-            {Array.from({ length: 8 }, (_, wi) => wi + 1).map((w) => (
-              <div
-                key={w}
-                className="w-4 h-4 rounded-sm"
-                style={hit.has(`${r}-${w}`) ? { background: "#FFD600" } : { background: "#252525" }}
-              />
-            ))}
-          </div>
-        ))}
-        <div className="flex gap-1 mt-1">
-          <span className="text-[8px] text-neon-pink w-5 shrink-0">Red</span>
-          <span className="text-[8px] text-text-secondary">{hit.size}/64 combos hit</span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function PunchCardLog({ history, liveRolls }: { history: PunchCardInstance[]; liveRolls: number }) {
   const withRolls = history.filter((p) => p.rolls !== null);
   const best = withRolls.length > 0 ? Math.min(...withRolls.map((p) => p.rolls as number)) : null;
@@ -560,47 +509,6 @@ function PunchCardLog({ history, liveRolls }: { history: PunchCardInstance[]; li
             </div>
           );
         })}
-      </div>
-    </div>
-  );
-}
-
-function PunchCardGrid({ detail }: { detail: { red?: number[]; white?: number[] } }) {
-  const red = detail.red ?? [];
-  const white = detail.white ?? [];
-  return (
-    <div className="mt-2 space-y-1.5">
-      <div className="flex items-center gap-1">
-        <span className="text-neon-pink text-[10px] w-8 font-display">Red</span>
-        {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
-          <div
-            key={n}
-            className="w-5 h-5 rounded text-[10px] flex items-center justify-center font-display"
-            style={
-              red.includes(n)
-                ? { background: "#FF2D55", color: "#0D0D0D", boxShadow: "0 0 5px rgba(255,45,85,0.5)" }
-                : { background: "#0D0D0D", border: "1px solid #252525", color: "#555" }
-            }
-          >
-            {n}
-          </div>
-        ))}
-      </div>
-      <div className="flex items-center gap-1">
-        <span className="text-text-secondary text-[10px] w-8 font-display">White</span>
-        {Array.from({ length: 8 }, (_, i) => i + 1).map((n) => (
-          <div
-            key={n}
-            className="w-5 h-5 rounded text-[10px] flex items-center justify-center font-display"
-            style={
-              white.includes(n)
-                ? { background: "#F5F5F5", color: "#0D0D0D" }
-                : { background: "#0D0D0D", border: "1px solid #252525", color: "#555" }
-            }
-          >
-            {n}
-          </div>
-        ))}
       </div>
     </div>
   );

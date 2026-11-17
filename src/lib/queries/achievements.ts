@@ -116,3 +116,124 @@ export async function fetchAchievementsPage(
 
   return { achievements, rarityByAchievement };
 }
+
+// ---------------------------------------------------------------------------
+// Achievement Tracker (feed "Tracker" tab)
+// ---------------------------------------------------------------------------
+
+export interface TrackerAroundTheWorldRow {
+  user_id: string;
+  username: string;
+  progress: number;
+  completed_at: string | null;
+  combos: string[];
+}
+
+export interface TrackerNearRow {
+  user_id: string;
+  username: string;
+  progress: number;
+  rolls_away: number;
+  numbers?: number[];
+  red?: number[];
+  white?: number[];
+}
+
+export interface TrackerNearSection {
+  rows: TrackerNearRow[];
+  /** True when nobody is within 2 rolls, so the closest few are shown instead. */
+  isFallback: boolean;
+}
+
+export interface TrackerTwinsiesRow {
+  user_id: string;
+  username: string;
+  progress: number;
+}
+
+export interface AchievementTrackerData {
+  aroundTheWorld: TrackerAroundTheWorldRow[];
+  doubleTrouble: TrackerNearSection;
+  malortAdventCalendar: TrackerNearSection;
+  punchCard: TrackerNearSection;
+  twinsies: TrackerTwinsiesRow[];
+}
+
+export const achievementTrackerQueryKey = ["achievementTracker"] as const;
+
+interface RawTrackerNearRow {
+  user_id: string;
+  username: string;
+  progress: number | string;
+  rolls_away: number | string;
+  numbers?: (number | string)[] | null;
+  red?: (number | string)[] | null;
+  white?: (number | string)[] | null;
+}
+
+interface RawTrackerPayload {
+  around_the_world?: (Omit<TrackerAroundTheWorldRow, "progress"> & {
+    progress: number | string;
+  })[];
+  double_trouble?: RawTrackerNearRow[];
+  malort_advent_calendar?: RawTrackerNearRow[];
+  the_punch_card?: RawTrackerNearRow[];
+  twinsies?: (Omit<TrackerTwinsiesRow, "progress"> & { progress: number | string })[];
+}
+
+const toNumbers = (arr: (number | string)[] | null | undefined): number[] =>
+  (arr ?? []).map(Number);
+
+/** Rows within 2 rolls of completing; if none, fall back to the closest 3. */
+function toNearSection(rows: TrackerNearRow[]): TrackerNearSection {
+  const within = rows.filter((r) => r.rolls_away <= 2);
+  return within.length
+    ? { rows: within, isFallback: false }
+    : { rows: rows.slice(0, 3), isFallback: true };
+}
+
+/**
+ * Loads the Achievement Tracker via the SECURITY DEFINER `get_achievement_tracker`
+ * RPC (RLS hides other users' in-progress rows). Returns a plain object so it
+ * can be dehydrated for server prefetch.
+ */
+export async function fetchAchievementTracker(
+  supabase: SupabaseClient
+): Promise<AchievementTrackerData> {
+  const { data, error } = await supabase.rpc("get_achievement_tracker");
+  if (error) {
+    console.error("[fetchAchievementTracker] failed to load tracker", error);
+    throw error;
+  }
+
+  const raw = (data ?? {}) as RawTrackerPayload;
+
+  const mapNear = (rows: RawTrackerNearRow[] | undefined): TrackerNearRow[] =>
+    (rows ?? []).map((r) => ({
+      user_id: r.user_id,
+      username: r.username,
+      progress: Number(r.progress),
+      rolls_away: Number(r.rolls_away),
+      ...(r.numbers ? { numbers: toNumbers(r.numbers) } : {}),
+      ...(r.red ? { red: toNumbers(r.red) } : {}),
+      ...(r.white ? { white: toNumbers(r.white) } : {}),
+    }));
+
+  return {
+    aroundTheWorld: (raw.around_the_world ?? []).map((r) => ({
+      user_id: r.user_id,
+      username: r.username,
+      progress: Number(r.progress),
+      completed_at: r.completed_at ?? null,
+      combos: r.combos ?? [],
+    })),
+    doubleTrouble: toNearSection(mapNear(raw.double_trouble)),
+    malortAdventCalendar: toNearSection(mapNear(raw.malort_advent_calendar)),
+    punchCard: toNearSection(mapNear(raw.the_punch_card)),
+    twinsies: (raw.twinsies ?? []).map((r) => ({
+      user_id: r.user_id,
+      username: r.username,
+      progress: Number(r.progress),
+    })),
+  };
+}
