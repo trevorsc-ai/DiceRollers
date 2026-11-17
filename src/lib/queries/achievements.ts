@@ -193,6 +193,20 @@ function toNearSection(rows: TrackerNearRow[]): TrackerNearSection {
 }
 
 /**
+ * Punch Card: all rows 1 roll away, topped up with 2-away rows to 5 total; else closest 3.
+ */
+function toPunchCardSection(rows: TrackerNearRow[]): TrackerNearSection {
+  const one = rows.filter((r) => r.rolls_away === 1);
+  const picked =
+    one.length < 5
+      ? [...one, ...rows.filter((r) => r.rolls_away === 2).slice(0, 5 - one.length)]
+      : one;
+  return picked.length
+    ? { rows: picked, isFallback: false }
+    : { rows: rows.slice(0, 3), isFallback: true };
+}
+
+/**
  * Loads the Achievement Tracker via the SECURITY DEFINER `get_achievement_tracker`
  * RPC (RLS hides other users' in-progress rows). Returns a plain object so it
  * can be dehydrated for server prefetch.
@@ -229,11 +243,14 @@ export async function fetchAchievementTracker(
     })),
     doubleTrouble: toNearSection(mapNear(raw.double_trouble)),
     malortAdventCalendar: toNearSection(mapNear(raw.malort_advent_calendar)),
-    punchCard: toNearSection(mapNear(raw.the_punch_card)),
-    twinsies: (raw.twinsies ?? []).map((r) => ({
-      user_id: r.user_id,
-      username: r.username,
-      progress: Number(r.progress),
-    })),
+    punchCard: toPunchCardSection(mapNear(raw.the_punch_card)),
+    // The RPC returns 10 twinsies rows (sorted by progress desc); the UI shows the top 5.
+    twinsies: (raw.twinsies ?? [])
+      .map((r) => ({
+        user_id: r.user_id,
+        username: r.username,
+        progress: Number(r.progress),
+      }))
+      .slice(0, 5),
   };
 }
