@@ -127,4 +127,6 @@ AS $$
 $$;
 
 REVOKE ALL ON FUNCTION public.get_achievement_tracker() FROM PUBLIC;
+-- Supabase grants EXECUTE to anon directly on public functions; PUBLIC alone isn't enough.
+REVOKE EXECUTE ON FUNCTION public.get_achievement_tracker() FROM anon;
 GRANT EXECUTE ON FUNCTION public.get_achievement_tracker() TO authenticated;
