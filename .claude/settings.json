@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)",
+      "Bash(ls:*)", "Bash(cat:*)", "Bash(grep:*)", "Bash(sed -n:*)",
+      "Bash(npx tsc --noEmit)", "Bash(npx next lint)", "Bash(npx next build)",
+      "Bash(scripts/deploy/preflight.sh)", "Bash(scripts/deploy/prepush.sh)", "Bash(scripts/deploy/migrate.sh)", "Bash(scripts/deploy/merge.sh)", "Bash(scripts/deploy/postdeploy.sh)", "Bash(scripts/deploy/ship.sh)",
+      "mcp__Supabase__list_tables", "mcp__Supabase__list_migrations"
+    ]
+  }
+}
